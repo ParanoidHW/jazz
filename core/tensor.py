@@ -28,7 +28,7 @@ class Zhangliang(object):
     @classmethod
     def zeros(cls, shape, dtype=np.float32):
         zeros_ = np.zeros(shape, dtype=dtype)
-        return cls(zeros_, )
+        return cls(zeros_)
 
     @classmethod
     def ones(cls, shape, dtype=np.float32):

@@ -25,13 +25,28 @@ class Node(object):
         self.name = node_name
 
 
+class Graph:
+    def __init__(self):
+        self._ops = dict()
+        self._nodes = []
+
+    def insert_node(self, node, op_type):
+        _op_count = self._ops.setdefault(op_type, 0)
+        self._ops[op_type] += 1
+        self._nodes.append(node)
+
+    def clear_graph(self):
+        self._ops = dict()
+        self._nodes = []
+
+
 def create_tracer(dict_):
     def trace_with_name(name):
         def warp(fn):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 new_node = Node(input_args=args, input_kwargs=kwargs, op_name=name)
-                if new_node.name in dict_:
+                if 'name' in kwargs.keys() and kwargs['name'] in dict_:
                     raise ValueError('Duplicate node name {} in computation graph.'.format(new_node.name))
                 # list_.append(weakref.ref(new_node))
                 dict_[new_node.name] = new_node
@@ -54,6 +69,7 @@ if __name__ == '__main__':
         out = x + y
         return out
 
-    z = temp_add(a, b)
-    print(z)
+    z1 = temp_add(a, b)
+    z2 = temp_add(z1, b)
+    print(z2)
 
