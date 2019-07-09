@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import numbers
 import numpy as np
 
-from .base import BaseZhangliang
+from core.base import BaseZhangliang
 from utils import sanity
 from utils.tracer import trace
 from utils.register import grad_register
@@ -108,8 +108,8 @@ def zl_add(a, b):
 def zl_add_grad(inputs, outputs_grad):
     assert len(inputs) == 2
     inputs_grad = [0 for _ in range(len(inputs))]
-    inputs_grad[0] = np.ones_like(outputs_grad)
-    inputs_grad[1] = np.ones_like(outputs_grad)
+    inputs_grad[0] = np.array(outputs_grad.zhi)
+    inputs_grad[1] = np.array(outputs_grad.zhi)
     return
 
 
@@ -128,8 +128,8 @@ def zl_sub(a, b):
 def zl_sub_grad(inputs, outputs_grad):
     assert len(inputs) == 2
     inputs_grad = [0 for _ in range(len(inputs))]
-    inputs_grad[0] = np.ones_like(outputs_grad)
-    inputs_grad[1] = - np.ones_like(outputs_grad)
+    inputs_grad[0] = np.array(outputs_grad.zhi)
+    inputs_grad[1] = - np.array(outputs_grad.zhi)
     return
 
 
@@ -392,8 +392,6 @@ def zl_tan(a):
 
 
 # numpy package has no `cot` function. So we skip `cot`, as well as `arccot`.
-
-
 @trace(op_name='arcsin')
 def zl_arcsin(a):
     if isinstance(a, Zhangliang):
@@ -474,3 +472,13 @@ def zl_arctanh(a):
         value = np.arctanh(a)
     return Zhangliang(value)
 
+
+
+if __name__ == '__main__':
+    from utils.tracer import graph
+    from utils.register import func_lib, grad_lib
+    a = Zhangliang([2,3])
+    b = Zhangliang([-1,0])
+
+    z1 = a + b + a
+    print(z1)

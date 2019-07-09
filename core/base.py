@@ -15,7 +15,7 @@ class BaseZhangliang(object):
         self.zhi = np.array(values, dtype=dtype)
         self.name = name
         self.requires_grad = requires_grad
-        self.tidu = np.empty_like(values)
+        self.tidu = np.zeros_like(values)
 
     def assign(self, new_value):
         self.zhi = new_value
