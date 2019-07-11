@@ -25,18 +25,17 @@
 
  	主要利用导数的定义：
 $$
-\begin{equation}
+\begin{align}\label{eq:der}
 \dfrac{\partial f(x)}{\partial x_i}\approx\dfrac{f(x+he_i)-f(x)}{h}
-\label{eq:derivatives}
-\end{equation}
+\end{align}
 $$
 这样输出量$f(x)$的梯度$\nabla f=\left(\dfrac{\partial f}{\partial x_i},\cdots,\dfrac{\partial f}{\partial x_n}\right)$，其中$e_i$是第$i$个元素为1其他为0的单位向量，$h$是一个很小的步长。这种方法比较容易实现，但是存在比较多的问题。
 
- 	第一，这种方法只能近似。误差来源主要有两个，第一个是截断误差（truncate error），这是式$\eqref{eq:derivatives}$造成的，主要是由于$h\neq 0$引起的；另一个误差来源是舍入误差（round-off error），主要是由于计算机本身表示上无法完全与理论相等，$f(x+he_i)$与$f(x)$在表示时存在误差。当$h\rightarrow 0$时，截断误差趋于0，但是舍入误差占主导；而随着$h$增大，截断误差则占据主导。
+ 	第一，这种方法只能近似。误差来源主要有两个，第一个是截断误差（truncate error），这是式$\eqref{eq:der}$造成的，主要是由于$h\neq 0$引起的；另一个误差来源是舍入误差（round-off error），主要是由于计算机本身表示上无法完全与理论相等，$f(x+he_i)$与$f(x)$在表示时存在误差。当$h\rightarrow 0$时，截断误差趋于0，但是舍入误差占主导；而随着$h$增大，截断误差则占据主导。
 
 ![1561796896145](assets/1561796896145.png)
 
- 	一种改进方法是不用式$\eqref{eq:derivatives}$的前向方式，改为中心式的：
+ 	一种改进方法是不用式$\eqref{eq:der}$的前向方式，改为中心式的：
 $$
 \begin{align}
 \dfrac{\partial f(x)}{\partial x_i}\approx\dfrac{f(x+he_i)-f(x-he_i)}{2h}+O(h^2)
