@@ -3,38 +3,62 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 
 import weakref
+from collections import OrderedDict
+
 from utils.register import func_register
 from core.base import BaseZhangliang
 
 
 class Node(object):
-    def __init__(self, input_args, input_kwargs, output, op_name):
-        self.inputs = []
-        for node in input_args:
-            self.inputs.append(node)
-        self.inputs = tuple(self.inputs)
-        self.input_kwargs = input_kwargs
+    def __init__(self, input_args, input_kwargs, output, op_type):
+        self.input_list = tuple(input_args)
+        self.input_list_id = tuple([id(an_input) for an_input in self.input_list])
         self.output = output
-        self.op_name = op_name
+        self.op_type = op_type
+        self.input_kwargs = input_kwargs
+        self.op_id = -1
+
+    def set_id(self, id_value):
+        self.op_id = id_value
+
+    @property
+    def name(self):
+        if self.op_id < 0:
+            raise ValueError('Node not added to graph.')
+        node_name = '{}_{}'.format(self.op_type, self.op_id)
+        return node_name
 
 
 class Graph:
     def __init__(self):
-        self._ops = dict()
-        self._nodes = []
-        self.output_mapping = dict()
+        self._op_count = dict()
+        self._nodes_list = OrderedDict()
+        self._topo = OrderedDict()
 
-    def insert_node(self, node, op_type):
-        _op_count = self._ops.setdefault(op_type, 0)
-        node_name = '{}_{}'.format(op_type, _op_count)
-        self._ops[op_type] += 1
-        self._nodes.append(node)
-        self.output_mapping[node.id] = node
+    def append_node(self, node: Node):
+        node_type = node.op_type
+        count = self._op_count.setdefault(node_type, 0)
+        node.set_id(count)
+        self._op_count[node_type] += 1
+        self._nodes_list[node.name] = node
+
+    def toposort(self):
+        for k, node_ in reversed(self._nodes_list.items()):
+            parents = []
+            for j, node_b in reversed(self._nodes_list.items()):
+                if id(node_b.output) in node_.input_list_id:
+                    parents.append(j)
+                if len(parents) == len(node_.input_list):
+                    break
+            self._topo[k] = parents
 
     def clear_graph(self):
-        self._ops = dict()
-        self._nodes = []
-        self.output_mapping = dict()
+        self._op_count.clear()
+        self._nodes_list.clear()
+        self._topo.clear()
+
+    def check_exist(self, key):
+        return key in self._nodes_list.keys()
 
 
 def create_tracer(graph_: Graph):
@@ -43,23 +67,15 @@ def create_tracer(graph_: Graph):
         def warp(fn):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
-                parents_node = []
-                new_node = Node(input_args=args, input_kwargs=kwargs, outputs=output, op_name=op_name)
-                if 'name' in kwargs.keys():
-                    if kwargs['name'] in dict_:
-                        raise ValueError('Duplicate node name {} in computation graph.'.format(kwargs['name']))
-                    else:
-                        dict_[kwargs['name']] = new_node
-                else:
-                    # list_.append(weakref.ref(new_node))
-                    dict_[new_node.name] = new_node
+                new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
+                graph_.append_node(new_node)
                 return output
             return eval_fn
         return warp
     return trace_with_name
 
 
-graph = {}
+graph = Graph()
 trace = create_tracer(graph)
 
 
