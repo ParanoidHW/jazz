@@ -3,7 +3,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy as np
-
+import collections
+import numbers
 # Base class for Zhangliang. This class is mainly for the tracer to determine whether the input is a Zhangliang or not.
 # Directly import tensor.py in tracer.py will result in a cyclic import problem. We hence define a base class of
 # Zhangliang to avoid such problem.
@@ -49,3 +50,20 @@ class BaseZhangliang(object):
     def ones(cls, shape, dtype=np.float32):
         ones_ = np.ones(shape, dtype=dtype)
         return cls(ones_)
+
+    @classmethod
+    def array(cls, data):
+        if isinstance(data, BaseZhangliang):
+            return cls(data.zhi, dtype=data.dtype)
+        elif isinstance(data, numbers.Integral):
+            return cls(data, dtype=np.int32)
+        elif isinstance(data, numbers.Real):
+            return cls(data, dtype=np.float32)
+        elif isinstance(data, (list, tuple)):
+            return cls(data, dtype=np.float32)
+        elif isinstance(data, collections.Iterable):
+            data = np.array(data)
+            return cls(data, dtype=np.float32)
+        else:
+            raise TypeError
+

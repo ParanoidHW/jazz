@@ -9,6 +9,7 @@ from core.base import BaseZhangliang
 from utils import sanity
 from utils.tracer import trace
 from utils.register import grad_register
+from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
 
 
 class Zhangliang(BaseZhangliang):
@@ -87,6 +88,9 @@ class Zhangliang(BaseZhangliang):
     def mean(self, dim=None, keepdims=False):
         return zl_reduce_mean(self, dim, keepdims)
 
+    def reshape(self, new_shape):
+        return zl_reshape(self, new_shape)
+
 
 # ---------------------------------------------------------- #
 # math ops for Zhangliang
@@ -95,22 +99,19 @@ class Zhangliang(BaseZhangliang):
 
 @trace(op_name='add')
 def zl_add(a, b):
-    if isinstance(a, numbers.Real):
-        value = a + b.zhi
-    elif isinstance(b, numbers.Real):
-        value = a.zhi + b
-    else:
-        value = a.zhi + b.zhi
+    a = Zhangliang.array(a)
+    b = Zhangliang.array(b)
+    value = a.zhi + b.zhi
     return Zhangliang(value)
 
 
 @grad_register(op_name='add')
 def zl_add_grad(inputs, outputs_grad):
     assert len(inputs) == 2
-    inputs_grad = [0 for _ in range(len(inputs))]
-    inputs_grad[0] = np.array(outputs_grad.zhi)
-    inputs_grad[1] = np.array(outputs_grad.zhi)
-    return
+    inputs_grad = [0, 0]
+    inputs_grad[0] = Zhangliang(outputs_grad)
+    inputs_grad[1] = Zhangliang(outputs_grad)
+    return inputs_grad
 
 
 @trace(op_name='sub')
@@ -143,6 +144,13 @@ def zl_reduce_mean(a, dim=None, keepdims=False):
 def zl_reduce_sum(a, dim=None, keepdims=False):
     values = np.sum(a.zhi, axis=dim, keepdims=keepdims)
     return Zhangliang(values)
+
+
+@trace(op_name='reshape')
+def zl_reshape(a, new_shape):
+    a = Zhangliang(a)
+    new_value = np.reshape(a.zhi, new_shape)
+    return Zhangliang(new_value)
 
 
 @trace(op_name='mul')
@@ -480,5 +488,6 @@ if __name__ == '__main__':
     a = Zhangliang([2,3])
     b = Zhangliang([-1,0])
 
-    z1 = a + b + a
+    z1 = a + b + 2
+    graph.toposort()
     print(z1)
