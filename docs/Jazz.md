@@ -743,11 +743,300 @@ exec(compile(new_ast, '<string>', 'exec'))
 
 autograd自动微分库基于基础运算的重载，主要重载的是``numpy``包和``scipy``包。
 
-##### 反向模式实现要点
+### 自动求导实现思路
 
-- 基础算子的导函数；
-- 为了适配上述导函数，可能需要自定义合适的数据结构，或者覆盖部分已有库（如``numpy``）
-- 计算图的保存。
+我们可以基于基础算子方法和运算符重载方法，在``PyThon``下实现一个自动微分的库。首先我们需要自定义一种数据类（例如``Tensorflow``中的``Variable``和``PyTorch``中的``tensor``数据类），库内所有基础算子将对其进行运算，并支持反向传播过程。在此基础上，我们只需要实现对该数据类的基础算子定义和运算符重载即可。
+
+#### 基础数据类型
+
+为了简单起见，我们先利用``numpy``的``ndarray``作为基础，将其封装一层即作为自定义数据类，并将其命名为``Zhangliang``（“张量”拼音）：
+
+```python
+class Zhangliang(object):
+    def __init__(self, values, dtype=np.float32):
+        self.zhi = np.array(values, dtype=dtype)
+
+     @property
+    def shape(self):
+        return self.zhi.shape
+
+     @property
+    def dtype(self):
+        return self.zhi.dtype
+
+     @classmethod
+    def from_array(cls, values, dtype=np.float32):
+        return cls(values, dtype=dtype)
+
+     @classmethod
+    def zeros(cls, shape, dtype=np.float32):
+        zeros_ = np.zeros(shape, dtype=dtype)
+        return cls(zeros_, )
+
+     @classmethod
+    def ones(cls, shape, dtype=np.float32):
+        ones_ = np.ones(shape, dtype=dtype)
+        return cls(ones_)
+```
+
+目前定义的``Zhangliang``类仅包括其值（``Zhangliang.zhi``，本质就是``numpy.ndarray``），以及一些基础函数，尚未包括运算符重载。回顾下``PyTorch``和``Tensorflow``中的数据类，它们都支持``a+b``形式的调用。这在``PyThon``中是遵循了协议接口，调用其数据类的``__add__``方法；另一方面，在``PyTorch``和``Tensorflow``我们还能看到``tf.add(a,b)``和``torch.add(a,b)``形式的调用，这说明两个框架也存在着独立的基础算子。综合这两点，实际上我们只需要实现独立的基础算子，然后在``Zhangliang.__add__``方法中调用``add``算子即可：
+
+```python
+# 定义基础算子，并重载运算符
+# 这里只展示基础四则运算
+
+class Zhangliang(object):
+     # 省略上述已有内容
+
+     def __add__(self, other):
+        return zl_add(self, other)
+
+     def __radd__(self, other):
+        return zl_add(other, self)
+
+     def __sub__(self, other):
+        return zl_sub(self, other)
+
+     def __rsub__(self, other):
+        return zl_sub(other, self)
+
+     def __truediv__(self, other):
+        return zl_truediv(self, other)
+
+
+def zl_add(a, b):
+    if isinstance(a, numbers.Real):
+        value = a + b.zhi
+    elif isinstance(b, numbers.Real):
+        value = a.zhi + b
+    else:
+        value = a.zhi + b.zhi
+    return Zhangliang(value)
+
+
+def zl_sub(a, b):
+    if isinstance(a, numbers.Real):
+        value = a - b.zhi
+    elif isinstance(b, numbers.Real):
+        value = a.zhi - b
+    else:
+        value = a.zhi - b.zhi
+    return Zhangliang(value)
+
+
+def zl_mul(a, b):
+    if isinstance(a, numbers.Real):
+        value = a * b.zhi
+    elif isinstance(b, numbers.Real):
+        value = a.zhi * b
+    else:
+        value = a.zhi * b.zhi
+    return Zhangliang(value)
+
+
+def zl_truediv(a, b):
+    if isinstance(a, numbers.Real):
+        value = a / b.zhi
+    elif isinstance(b, numbers.Real):
+        if b == 0:
+            raise ValueError('0 cannot be divisor.')
+        value = a.zhi / b
+    else:
+        value = a.zhi / b.zhi
+    return Zhangliang(value)
+
+# 省略以下
+```
+
+定义这些运算比较简单，甚至求对应的微分过程也比较容易实现。但问题是：
+
+- **如何注册前向和反向运算？**
+- **我们在编写前馈运算时，怎么跟踪和记录运算过程？**
+- **为了确定反传的执行顺序，怎么通过上述跟踪记录来获得计算图？**
+
+#### 第一个问题：如何注册前向和反向函数？
+
+相对而言比较简单：我们定义两个字典：
+
+```python
+forward_func = dict()
+backward_func = dict()
+```
+
+然后前馈函数和反馈函数各自以``{算子名：前馈/反馈函数}``对的方式进行注册。我们通过``PyThon``装饰器来进行注册，为此，先定义两个注册机：
+
+```python
+def create_register(dict_):
+    def register(key):
+        def _(fn):
+            dict_[key] = fn
+            return fn
+        return _
+    return register
+
+forward_func = {}
+forward_register = create_register(forward_func)
+backward_func = {}
+backward_register = create_register(backward_func)
+```
+
+那么只需要在基础算子定义前加上装饰器即可完成注册，比如以下代码可以将``zl_add``函数注册到前馈函数库中并注册为``{'add': zl_add}``：
+
+```python
+@forward_register(key='add')
+def zl_add(a, b):
+    pass
+```
+
+#### 第二个问题：如何跟踪和记录运算过程？
+
+即使注册了函数，我们仍需要跟踪和记录前馈过程的运算过程。假设有一个跟踪机``tracer``，在每次调用基础算子时，都需要记录算子的``Zhangliang``输入和输出，以及算子自身的类型。这一需求同样可以通过装饰器来实现：
+
+```python
+# create_tracer将定义一个计算图`graph_`，具体类型稍后介绍
+# trave_with_name则是真正的装饰器函数，将使用`op_name`来追踪被装饰函数
+# warp是对原函数的封装，传入为原函数引用
+# eval_fn是真正执行原函数，并且在执行后将输入输出记录到计算图中
+
+def create_tracer(graph_):
+    def trace_with_name(op_name):
+        def warp(fn):
+            def eval_fn(*args, **kwargs):
+                output = fn(*args, **kwargs)
+                
+                # 将输入args和输出output记录到计算图graph_中
+                # 也要记录算子的配置kwargs
+                
+                return output
+            return eval_fn
+        return warp
+    return trace_with_name
+
+graph = {}
+trace = create_tracer(graph)
+```
+
+将``trace``装饰器放在前馈函数前，就能在每次调用该函数时将输入和输出记录到计算图``graph_``中。
+
+不过此时又出现了一个问题：前馈函数注册机``forward_func``和跟踪器``trace``两个装饰器有点不同，``forward_func``是在前馈函数定义时调用一次（只需要一次即可），而``trace``则是每次调用前馈函数时都要调用。连着使用两个装饰器会导致每次调用前馈函数时都注册一次；另外，两个有点麻烦，不如一个装饰器简便。基于上述理由，我们将``trace``修改为：
+
+```python
+def create_tracer(graph_: Graph):
+    def trace_with_name(op_name):
+        @forward_func(op_name=op_name)
+        def warp(fn):
+            def eval_fn(*args, **kwargs):
+                output = fn(*args, **kwargs)
+                
+                # 将输入args和输出output记录到计算图graph_中
+                # 也要记录算子的配置kwargs
+                
+                return output
+            return eval_fn
+        return warp
+    return trace_with_name
+
+
+graph = Graph()
+trace = create_tracer(graph)
+```
+
+注意到第3行，``forward_func``装饰器现在装饰了原函数的封装函数``warp``。这样在添加``trace``装饰器的时候，就会调用一次注册机，原函数即在装饰``trace``时完成了注册。
+
+因此，剩下的目标就是如何定义计算图，以便在调用前馈函数时将各张量和算子记录下来。
+
+#### 第三个问题：怎么通过上述跟踪记录来获得计算图？
+
+计算图中需要包括三类元素：
+
+- 运算过程中的常量；
+- 运算过程中的张量、中间变量；
+- 运算过程中的算子。
+
+一个基本的观察是：每个基础算子可能有若干个输入，但是只会有一个输出。所以每个算子都会绑定一个输出的中间变量/张量。我们定义一个节点类：
+
+```python
+# 节点类，每个节点对应一个算子，以及一个输出的中间变量
+# input_list:        输入的`Zhangliang`
+# input_list_id:     每个输入`Zhangliang`的id
+# output:            输出的`Zhangliang`
+# op_type: 			节点算子类型，对应于注册机内的关键字
+# input_kwargs:      算子配置
+# op_id:             节点编号
+class Node(object):
+    def __init__(self, input_args, input_kwargs, output, op_type):
+        self.input_list = tuple(input_args)
+        self.input_list_id = tuple([id(an_input) for an_input in self.input_list])
+        self.output = output
+        self.op_type = op_type
+        self.input_kwargs = input_kwargs
+        self.op_id = -1
+
+    def set_id(self, id_value):
+        self.op_id = id_value
+
+    @property
+    def name(self):
+        if self.op_id < 0:
+            raise ValueError('Node not added to graph.')
+        node_name = '{}_{}'.format(self.op_type, self.op_id)
+        return node_name
+    
+# 计算图类
+# _op_count: 每种不同类型的算子的计数
+# _nodes_list: 按照添加顺序排列的节点字典；会给每个节点一个名字；
+# _topo: 计算图的反向拓扑；反传过程将按照这个拓扑顺序
+# append_node: 添加节点，会为每个节点一个名字
+# toposort: 按照拓扑顺序对节点进行排列
+# clear_graph: 清除计算图
+
+class Graph:
+    def __init__(self):
+        self._op_count = dict()
+        self._nodes_list = OrderedDict()
+        self._topo = OrderedDict()
+
+    def append_node(self, node: Node):
+        node_type = node.op_type
+        count = self._op_count.setdefault(node_type, 0)
+        node.set_id(count)
+        self._op_count[node_type] += 1
+        self._nodes_list[node.name] = node
+
+    def toposort(self):
+        for k, node_ in reversed(self._nodes_list.items()):
+            parents = []
+            for j, node_b in reversed(self._nodes_list.items()):
+                if id(node_b.output) in node_.input_list_id:
+                    parents.append(j)
+                if len(parents) == len(node_.input_list):
+                    break
+            self._topo[k] = parents
+
+    def clear_graph(self):
+        self._op_count.clear()
+        self._nodes_list.clear()
+        self._topo.clear()
+```
+
+然后在``trace``中调用计算图：
+
+```python
+def create_tracer(graph_: Graph):
+    def trace_with_name(op_name):
+        @func_register(op_name=op_name)
+        def warp(fn):
+            def eval_fn(*args, **kwargs):
+                output = fn(*args, **kwargs)
+                new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
+                graph_.append_node(new_node)
+                return output
+            return eval_fn
+        return warp
+    return trace_with_name
+```
+
+至此，我们完成了自动微分的部分必需内容。
 
 ## hook技术
 
@@ -811,6 +1100,8 @@ autograd自动微分库基于基础运算的重载，主要重载的是``numpy``
 由此可以看到，通过对不同阶段的数据使用钩子，我们可以容易得获得中间变量/模块的数值/梯度等数据，并在其他任务中进行分析和处理。
 
 个人认为钩子函数主要适用于对中间变量、特征图的数值和梯度的提取，这在对抗样本、迁移学习等邻域可能较为常用。而对于``torch.tensor``定义的变量（比如上例中的``x``）和模块参数（上例中的``model.w``），无需使用钩子技术。
+
+
 
 ## 资源
 

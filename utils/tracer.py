@@ -57,9 +57,6 @@ class Graph:
         self._nodes_list.clear()
         self._topo.clear()
 
-    def check_exist(self, key):
-        return key in self._nodes_list.keys()
-
 
 def create_tracer(graph_: Graph):
     def trace_with_name(op_name):
