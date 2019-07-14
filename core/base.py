@@ -34,6 +34,10 @@ class BaseZhangliang(object):
         return self.zhi.shape
 
     @property
+    def ndim(self):
+        return self.zhi.ndim
+
+    @property
     def dtype(self):
         return self.zhi.dtype
 

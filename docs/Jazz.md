@@ -743,7 +743,7 @@ exec(compile(new_ast, '<string>', 'exec'))
 
 autograd自动微分库基于基础运算的重载，主要重载的是``numpy``包和``scipy``包。
 
-### 自动求导实现思路
+## 自动求导实现思路
 
 我们可以基于基础算子方法和运算符重载方法，在``PyThon``下实现一个自动微分的库。首先我们需要自定义一种数据类（例如``Tensorflow``中的``Variable``和``PyTorch``中的``tensor``数据类），库内所有基础算子将对其进行运算，并支持反向传播过程。在此基础上，我们只需要实现对该数据类的基础算子定义和运算符重载即可。
 
@@ -1037,6 +1037,233 @@ def create_tracer(graph_: Graph):
 ```
 
 至此，我们完成了自动微分的部分必需内容。
+
+#### 张量广播规律
+
+张量前馈过程的广播（``broadcast``）由``numpy``内置运算确定，张量各维度需满足一定的关系才能完成广播。目前观察到张量在各个库（``numpy``，``tensorflow``和``pytorch``）内存在两类广播形式，我们这里分别称为"元素型"和"矩阵型"（下表中的``n``下标从1开始）：
+
+![1563102229540](assets/1563102229540.png)
+
+所以不同的广播类型在反传时需要有不同的维度缩减策略。我们举个例子说明反传时的维度缩减情况。
+
+##### 元素级运算
+
+假定两个矩阵$a$大小为$2\times 1$，$b$大小为$2\times 2$：
+$$
+\begin{equation}
+a = \begin{bmatrix}
+x_1 \\
+x_2 
+\end{bmatrix},\quad
+b = \begin{bmatrix}
+y_{11} & y_{12} \\
+y_{21} & y_{22}
+\end{bmatrix}
+\end{equation}
+$$
+两者的四则运算为（以加法为例）：
+$$
+\begin{equation}
+c=a\oplus b=\begin{bmatrix}
+x_1 \\
+x_2 
+\end{bmatrix}\oplus
+\begin{bmatrix}
+y_{11} & y_{12} \\
+y_{21} & y_{22}
+\end{bmatrix}
+=
+\begin{bmatrix}
+x_1+y_{11} & x_1+y_{12} \\
+x_2+y_{21} & x_2+y_{22}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\tilde{y}_{11} & \tilde{y}_{12} \\
+\tilde{y}_{21} & \tilde{y}_{22}
+\end{bmatrix}
+\end{equation}
+$$
+输出大小为$2\times 2$。在反向传播时，损失值传到变量$c$应该同样为$2\times 2$大小。那么传回变量$a$和$b$时：
+$$
+\begin{align}
+\frac{\partial l}{\partial x_1}&=\frac{\partial l}{\partial \tilde{y}_{11}}\frac{\partial \tilde{y}_{11}}{\partial x_1}+\frac{\partial l}{\partial \tilde{y}_{12}}\frac{\partial \tilde{y}_{12}}{\partial x_1}=\frac{\partial l}{\partial \tilde{y}_{11}}+\frac{\partial l}{\partial \tilde{y}_{12}} \\
+\frac{\partial l}{\partial y_{11}}&=\frac{\partial l}{\partial \tilde{y}_{11}}\frac{\partial \tilde{y}_{11}}{\partial y_{11}}=\frac{\partial l}{\partial \tilde{y}_{11}}
+\end{align}
+$$
+记：
+$$
+\begin{equation}
+\nabla_cl=\begin{bmatrix}
+\dfrac{\partial l}{\partial \tilde{y}_{11}} & \dfrac{\partial l}{\partial \tilde{y}_{12}}\\
+\dfrac{\partial l}{\partial \tilde{y}_{21}} & \dfrac{\partial l}{\partial \tilde{y}_{22}}
+\end{bmatrix}
+\end{equation}
+$$
+那么：
+$$
+\begin{align}
+\nabla_al&=\mathrm{ReducedSum}(\nabla_cl,dim=1)  \\
+\nabla_bl&=\nabla_cl
+\end{align}
+$$
+元素乘法类似：
+$$
+\begin{equation}
+c=a+b=\begin{bmatrix}
+x_1 \\
+x_2 
+\end{bmatrix}\otimes
+\begin{bmatrix}
+y_{11} & y_{12} \\
+y_{21} & y_{22}
+\end{bmatrix}
+=
+\begin{bmatrix}
+x_1y_{11} & x_1y_{12} \\
+x_2y_{21} & x_2y_{22}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\tilde{y}_{11} & \tilde{y}_{12} \\
+\tilde{y}_{21} & \tilde{y}_{22}
+\end{bmatrix}
+\end{equation}
+$$
+
+$$
+\begin{align}
+\frac{\partial l}{\partial x_1}&=\frac{\partial l}{\partial \tilde{y}_{11}}\frac{\partial \tilde{y}_{11}}{\partial x_1}+\frac{\partial l}{\partial \tilde{y}_{12}}\frac{\partial \tilde{y}_{12}}{\partial x_1}=\frac{\partial l}{\partial \tilde{y}_{11}}y_{11}+\frac{\partial l}{\partial \tilde{y}_{12}}y_{12} \\
+\frac{\partial l}{\partial y_{11}}&=\frac{\partial l}{\partial \tilde{y}_{11}}\frac{\partial \tilde{y}_{11}}{\partial y_{11}}=\frac{\partial l}{\partial \tilde{y}_{11}}x_1
+\end{align}
+$$
+
+所以：
+$$
+\begin{align}
+\nabla_al&=\mathrm{ReducedSum}(\nabla_cl\otimes b,dim=1)  \\
+\nabla_bl&=\nabla_cl\otimes a
+\end{align}
+$$
+
+
+这里的``dim``参数序号从0开始。
+
+##### 矩阵级运算
+
+假定两个矩阵，$a$大小为$2\times 1$，$b$大小为$4\times 1\times 3$：
+$$
+\begin{equation}
+a = \begin{bmatrix}
+x_1 \\
+x_2 
+\end{bmatrix},\quad
+b = \begin{bmatrix}
+\begin{bmatrix}
+y_{11} & y_{12} & y_{13}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{21} & y_{22} & y_{23}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{31} & y_{32} & y_{33}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{41} & y_{42} & y_{43}
+\end{bmatrix}\\
+\end{bmatrix}
+\end{equation}
+$$
+由于矩阵乘法实际参与运算的维度是最后两维，所以两者的矩阵乘结果为$4\times2\times3$大小：
+$$
+\begin{equation}
+\begin{split}
+c&=a\times b=\begin{bmatrix}
+x_1 \\
+x_2 
+\end{bmatrix}\times
+\begin{bmatrix}
+\begin{bmatrix}
+y_{11} & y_{12} & y_{13}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{21} & y_{22} & y_{23}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{31} & y_{32} & y_{33}
+\end{bmatrix}\\
+\begin{bmatrix}
+y_{41} & y_{42} & y_{43}
+\end{bmatrix}\\
+\end{bmatrix}
+\\
+&=
+\begin{bmatrix}
+\begin{bmatrix}
+x_1y_{11} & x_1y_{12} & x_1y_{13} \\
+x_2y_{11} & x_2y_{12} & x_2y_{13}
+\end{bmatrix}\\
+\begin{bmatrix}
+x_1y_{21} & x_1y_{22} & x_1y_{23} \\
+x_2y_{21} & x_2y_{22} & x_2y_{23}
+\end{bmatrix}\\
+\begin{bmatrix}
+x_1y_{31} & x_1y_{32} & x_1y_{33} \\
+x_2y_{31} & x_2y_{32} & x_2y_{33}
+\end{bmatrix}\\
+\begin{bmatrix}
+x_1y_{41} & x_1y_{42} & x_1y_{43} \\
+x_2y_{41} & x_2y_{42} & x_2y_{43}
+\end{bmatrix}\\
+\end{bmatrix}
+=
+\begin{bmatrix}
+\begin{bmatrix}
+z_{111} & z_{112} & z_{113} \\
+z_{211} & z_{212} & z_{213}
+\end{bmatrix}\\
+\begin{bmatrix}
+z_{121} & z_{122} & z_{123} \\
+z_{221} & z_{222} & z_{223}
+\end{bmatrix}\\
+\begin{bmatrix}
+z_{131} & z_{132} & z_{133} \\
+z_{231} & z_{232} & z_{233}
+\end{bmatrix}\\
+\begin{bmatrix}
+z_{141} & z_{142} & z_{143} \\
+z_{241} & z_{242} & z_{243}
+\end{bmatrix}\\
+\end{bmatrix}
+\end{split}
+\end{equation}
+$$
+于是不难得到：
+$$
+\begin{align}
+\frac{\partial l}{\partial x_1}&=\sum_{i=1}^4\sum_{j=1}^3\frac{\partial l}{\partial z_{1ij}}\frac{\partial z_{1ij}}{\partial x_1}=\sum_{i=1}^4\sum_{j=1}^3\frac{\partial l}{\partial z_{1ij}}y_{ij} \\
+\frac{\partial l}{\partial y_{11}}&=\sum_{i=1}^2\frac{\partial l}{\partial z_{i11}}\frac{\partial z_{i11}}{\partial y_{11}}=\sum_{i=1}^2\frac{\partial l}{\partial z_{i11}}x_i
+\end{align}
+$$
+因此，类似的，如果记：
+$$
+\begin{equation}
+\nabla_cl=\begin{bmatrix}
+\dfrac{\partial l}{\partial z_{ijk}}
+\end{bmatrix}
+_{4\times2\times3}
+\end{equation}
+$$
+那么反传时的梯度为：
+$$
+\begin{equation}
+\begin{split}
+\nabla_al&=\mathrm{ReducedSum}(\nabla_cl\times b^T, dim=0) \\
+\nabla_bl&=a^T\times\nabla_cl
+\end{split}
+\end{equation}
+$$
+这里的转置是对张量最后两个维度进行转换。
 
 ## hook技术
 
