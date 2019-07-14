@@ -2,11 +2,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import weakref
 from collections import OrderedDict
 
 from utils.register import func_register
-from core.base import BaseZhangliang
 
 
 class Node(object):

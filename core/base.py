@@ -3,8 +3,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy as np
-import collections
-import numbers
 # Base class for Zhangliang. This class is mainly for the tracer to determine whether the input is a Zhangliang or not.
 # Directly import tensor.py in tracer.py will result in a cyclic import problem. We hence define a base class of
 # Zhangliang to avoid such problem.
@@ -12,62 +10,36 @@ import numbers
 
 
 class BaseZhangliang(object):
-    def __init__(self, values, dtype=np.float32, name='', requires_grad=False):
-        self.zhi = np.array(values, dtype=dtype)
-        self.name = name
+    def __init__(self, values, dtype=np.float32, requires_grad=False):
+        self._zhi = np.array(values, dtype=dtype)
         self.requires_grad = requires_grad
-        self.tidu = np.zeros_like(values)
+        self._tidu = np.zeros_like(values)
 
-    def assign(self, new_value):
-        self.zhi = new_value
-        return self
+    def assign_value(self, new_value):
+        self._zhi = new_value
+
+    def assign_grad(self, grad_value):
+        self._tidu = grad_value
 
     @property
     def grad(self):
         if not self.requires_grad:
             raise AttributeError('Tensor requires no gradient.')
         else:
-            return self.tidu
+            return self._tidu
+
+    @property
+    def values(self):
+        return self._zhi
 
     @property
     def shape(self):
-        return self.zhi.shape
+        return self._zhi.shape
 
     @property
     def ndim(self):
-        return self.zhi.ndim
+        return self._zhi.ndim
 
     @property
     def dtype(self):
-        return self.zhi.dtype
-
-    @classmethod
-    def from_array(cls, values, dtype=np.float32):
-        return cls(values, dtype=dtype)
-
-    @classmethod
-    def zeros(cls, shape, dtype=np.float32):
-        zeros_ = np.zeros(shape, dtype=dtype)
-        return cls(zeros_)
-
-    @classmethod
-    def ones(cls, shape, dtype=np.float32):
-        ones_ = np.ones(shape, dtype=dtype)
-        return cls(ones_)
-
-    @classmethod
-    def array(cls, data):
-        if isinstance(data, BaseZhangliang):
-            return cls(data.zhi, dtype=data.dtype)
-        elif isinstance(data, numbers.Integral):
-            return cls(data, dtype=np.int32)
-        elif isinstance(data, numbers.Real):
-            return cls(data, dtype=np.float32)
-        elif isinstance(data, (list, tuple)):
-            return cls(data, dtype=np.float32)
-        elif isinstance(data, collections.Iterable):
-            data = np.array(data)
-            return cls(data, dtype=np.float32)
-        else:
-            raise TypeError
-
+        return self._zhi.dtype

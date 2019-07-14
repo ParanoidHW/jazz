@@ -86,8 +86,8 @@ def multiplicative_broadcast_analysis(input_shapes, output_shape):
             axes_to_reduce = []
             incompatible = False
 
-            if a_dim == 2:
-                axes_to_reduce = tuple(range(b_dim-2))
+            if b_dim > a_dim:
+                axes_to_reduce = list(range(b_dim-a_dim))
             for i in range(a_dim-2):
                 neg_idx = i - a_dim
                 if a_shape[neg_idx] != b_shape[neg_idx]:
@@ -184,6 +184,9 @@ if __name__ == '__main__':
     b_shape = (5, 6)
     check_prod_shape(a_shape, b_shape)
 
+    b_shape = (3, 5, 6)
+    check_prod_shape(a_shape, b_shape)
+
     b_shape = (1, 1, 5, 6)
     check_prod_shape(a_shape, b_shape)
 
@@ -191,4 +194,11 @@ if __name__ == '__main__':
     check_prod_shape(a_shape, b_shape)
 
     b_shape = (1, 3, 5, 6)
+    check_prod_shape(a_shape, b_shape)
+
+    b_shape = (2, 3, 4, 2, 3, 5, 6)
+    check_prod_shape(a_shape, b_shape)
+
+    a_shape = (2, 3, 4, 2, 3, 5, 6)
+    b_shape = (2, 1, 4, 5)
     check_prod_shape(a_shape, b_shape)
