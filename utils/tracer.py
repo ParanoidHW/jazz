@@ -32,6 +32,13 @@ class Graph:
         self._op_count = dict()
         self._nodes_list = OrderedDict()
         self._topo = OrderedDict()
+        self._ctx_requires_grad = True
+
+    def is_grad_enable(self):
+        return self._ctx_requires_grad
+
+    def set_grad_enable(self, enabled=True):
+        self._ctx_requires_grad = enabled
 
     def append_node(self, node: Node):
         node_type = node.op_type
@@ -71,14 +78,14 @@ def create_tracer(graph_: Graph):
 
 
 graph = Graph()
-trace = create_tracer(graph)
+ctx_register = create_tracer(graph)
 
 
 if __name__ == '__main__':
     a = 2
     b = 3
 
-    @trace(op_name='add')
+    @ctx_register(op_name='add')
     def temp_add(x, y):
         out = x + y
         return out

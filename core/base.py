@@ -10,10 +10,10 @@ import numpy as np
 
 
 class BaseZhangliang(object):
-    def __init__(self, values, dtype=np.float32, requires_grad=False):
-        self._zhi = np.array(values, dtype=dtype)
+    def __init__(self, data, dtype=np.float32, requires_grad=False):
+        self._zhi = np.array(data, dtype=dtype)
         self.requires_grad = requires_grad
-        self._tidu = np.zeros_like(values)
+        self._tidu = np.zeros_like(data)
 
     def assign_value(self, new_value):
         self._zhi = new_value
@@ -43,3 +43,13 @@ class BaseZhangliang(object):
     @property
     def dtype(self):
         return self._zhi.dtype
+
+    @property
+    def size(self):
+        return self._zhi.size
+
+    def __len__(self):
+        return len(self._zhi)
+
+    def __getitem__(self, item):
+        return self._zhi[item]

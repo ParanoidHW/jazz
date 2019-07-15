@@ -2,6 +2,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import numbers
+import collections
+
 
 def additive_broadcast_analysis(input_shapes, output_shape):
     """
@@ -107,6 +110,25 @@ def multiplicative_broadcast_analysis(input_shapes, output_shape):
     return reduced_axes
 
 
+def recover_dim(ori_shape, tar_shape, dim=None, keepdims=False):
+    new_shape = list(ori_shape)
+    if keepdims:
+        return new_shape
+
+    if dim is not None:
+        if isinstance(dim, (list, tuple)) or isinstance(dim ,collections.Iterable):
+            dim = sorted(dim)
+        elif isinstance(dim, numbers.Integral):
+            dim = [dim]
+        else:
+            raise ValueError
+    else:
+        dim = list(range(len(ori_shape)))
+    for d in dim:
+        new_shape[d] = 1
+    return new_shape
+
+
 if __name__ == '__main__':
     import numpy as np
 
@@ -201,4 +223,8 @@ if __name__ == '__main__':
 
     a_shape = (2, 3, 4, 2, 3, 5, 6)
     b_shape = (2, 1, 4, 5)
+    check_prod_shape(a_shape, b_shape)
+
+    a_shape = (5, )
+    b_shape = (2, 3, 1, 5)
     check_prod_shape(a_shape, b_shape)
