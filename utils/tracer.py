@@ -34,7 +34,7 @@ class Graph:
         self._topo = OrderedDict()
         self._ctx_requires_grad = True
 
-    def is_grad_enable(self):
+    def is_grad_enabled(self):
         return self._ctx_requires_grad
 
     def set_grad_enable(self, enabled=True):
@@ -65,8 +65,8 @@ class Graph:
 
 def create_tracer(graph_: Graph):
     def trace_with_name(op_name):
-        @func_register(op_name=op_name)
         def warp(fn):
+            @func_register(op_name=op_name)
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
