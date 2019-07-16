@@ -14,7 +14,7 @@ from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_ana
 
 
 class Zhangliang(BaseZhangliang):
-    def __init__(self, data, dtype=np.float32, requires_grad=False):
+    def __init__(self, data, dtype=np.float64, requires_grad=False):
         if isinstance(data, Zhangliang):
             data = data.values
         elif np.isscalar(data):
@@ -22,23 +22,23 @@ class Zhangliang(BaseZhangliang):
         super(Zhangliang, self).__init__(data, dtype, requires_grad)
 
     @classmethod
-    def zeros(cls, shape, dtype=np.float32, requires_grad=False):
+    def zeros(cls, shape, dtype=np.float64, requires_grad=False):
         zeros_ = np.zeros(shape, dtype=dtype)
         return cls(zeros_, requires_grad=requires_grad)
 
     @classmethod
-    def ones(cls, shape, dtype=np.float32, requires_grad=False):
+    def ones(cls, shape, dtype=np.float64, requires_grad=False):
         ones_ = np.ones(shape, dtype=dtype)
         return cls(ones_, requires_grad=requires_grad)
 
     @classmethod
-    def zeros_like(cls, data, dtype=np.float32, requires_grad=False):
+    def zeros_like(cls, data, dtype=np.float64, requires_grad=False):
         shape = data.shape
         zeros_ = np.zeros(shape, dtype=dtype)
         return cls(zeros_, requires_grad=requires_grad)
 
     @classmethod
-    def ones_like(cls, data, dtype=np.float32, requires_grad=False):
+    def ones_like(cls, data, dtype=np.float64, requires_grad=False):
         shape = data.shapes
         ones_ = np.ones(shape, dtype=dtype)
         return cls(ones_, requires_grad=requires_grad)
@@ -50,10 +50,10 @@ class Zhangliang(BaseZhangliang):
         elif np.isscalar(data):
             return cls([data], dtype=np.int32, requires_grad=requires_grad)
         elif isinstance(data, (list, tuple)):
-            return cls(data, dtype=np.float32, requires_grad=requires_grad)
+            return cls(data, dtype=np.float64, requires_grad=requires_grad)
         elif isinstance(data, collections.Iterable):
             data = np.array(data)
-            return cls(data, dtype=np.float32, requires_grad=requires_grad)
+            return cls(data, dtype=np.float64, requires_grad=requires_grad)
         else:
             raise TypeError
 
@@ -259,7 +259,7 @@ def zl_mul_grad(output, x, y):
         grads = output.grad * y.values
         if len(axes_to_reduce[0]) > 0:
             grads = np.sum(grads, axis=axes_to_reduce[0])
-        y.assign_grad(np.reshape(grads, x.shape))
+        x.assign_grad(np.reshape(grads, x.shape))
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = output.grad * x.values
         if len(axes_to_reduce[1]) > 0:

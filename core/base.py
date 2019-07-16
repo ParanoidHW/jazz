@@ -10,7 +10,7 @@ import numpy as np
 
 
 class BaseZhangliang(object):
-    def __init__(self, data, dtype=np.float32, requires_grad=False):
+    def __init__(self, data, dtype=np.float64, requires_grad=False):
         self._zhi = np.array(data, dtype=dtype)
         self.requires_grad = requires_grad
         self._tidu = np.zeros_like(self._zhi)

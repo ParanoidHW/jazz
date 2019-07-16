@@ -2,10 +2,11 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import numpy as np
+
 
 def test_broadcast_rule():
     from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
-    import numpy as np
 
     def eltwise(ashape, bshape):
         a = np.ones(ashape)
@@ -69,7 +70,15 @@ def test_broadcast_rule():
     b_shape = (2, )
     check_elt_shape(a_shape, b_shape)
 
+    b_shape = (5,)
+    check_elt_shape(a_shape, b_shape)
+
+    a_shape = (1,)
+    b_shape = (2,)
+    check_elt_shape(a_shape, b_shape)
+
     # matmul
+    a_shape = (2, 3, 4, 5)
     b_shape = (1,)
     check_prod_shape(a_shape, b_shape)
 
@@ -100,4 +109,8 @@ def test_broadcast_rule():
 
     a_shape = (5, )
     b_shape = (2, 3, 1, 5)
+    check_prod_shape(a_shape, b_shape)
+
+    a_shape = (1,)
+    b_shape = (2,)
     check_prod_shape(a_shape, b_shape)
