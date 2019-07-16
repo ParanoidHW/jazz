@@ -6,6 +6,8 @@ from itertools import product
 import numpy as np
 from core import Zhangliang
 from utils.register import func_lib, grad_lib
+from utils.misc import multiplicative_broadcast_analysis, additive_broadcast_analysis
+
 
 TOL = 1e-6
 RTOL = 1e-6
@@ -44,7 +46,7 @@ def approx_numeric_grad(z_p, z_m):
     return (z_p - z_m) / EPS
 
 
-def check_binary_numeric_grad(op_name, a, b, *args, **kwargs):
+def check_element_binary_numeric_grad(op_name, a, b, *args, **kwargs):
     fn = func_lib[op_name]
     gn = grad_lib[op_name]
     x = Zhangliang(a, requires_grad=True)
@@ -52,6 +54,7 @@ def check_binary_numeric_grad(op_name, a, b, *args, **kwargs):
     z = fn(x, y, *args, **kwargs)
     z.assign_grad(np.ones_like(z))
     gn(z, x, y, *args, **kwargs)
+    axes_to_reduce = additive_broadcast_analysis([x.shape, y.shape], z.shape)
 
     for i in range(10):
         x_var = np.random.rand(*(x.shape)) * EPS/2
@@ -64,6 +67,7 @@ def check_binary_numeric_grad(op_name, a, b, *args, **kwargs):
         z_minus = fn(x_minus, y, *args, **kwargs)
 
         x_numer_grad = (z_plus.values - z_minus.values) / (2 * x_var)
+        x_numer_grad = np.sum(x_numer_grad, axis=axes_to_reduce[0])
 
         if not array_close(x_numer_grad, x.grad):
             print('Test derivative check of `{}` w.r.t. `x` ({}/10) failed.\n' \
@@ -83,6 +87,7 @@ def check_binary_numeric_grad(op_name, a, b, *args, **kwargs):
         z_minus = fn(x, y_minus, *args, **kwargs)
 
         y_numer_grad = (z_plus.values - z_minus.values) / (2 * y_var)
+        y_numer_grad = np.sum(y_numer_grad, axis=axes_to_reduce[1])
 
         if not array_close(y_numer_grad, y.grad):
             print('Test derivative check of `{}` w.r.t. `y` ({}/10) failed.\n' \
@@ -101,10 +106,10 @@ def test_check_forward_func_and_backkward_func():
 
 def test_check_binary_func():
     get_arg = arg_space()
-    op_list = {'add', 'sub', 'mul'}
+    op_list = {'add', 'sub', 'mul', 'div', 'minimum', 'maximum'}
     for arg1, arg2 in get_arg:
         for op_name in sorted(op_list):
             print('---------------------------------------------------------')
-            print('Arg1: {}, Arg2: {}, op: {}'.format(arg1, arg2, op_name))
-            check_binary_numeric_grad(op_name, arg1, arg2)
+            print('Arg1: {}\nArg2: {}\nop: {}'.format(arg1, arg2, op_name))
+            check_element_binary_numeric_grad(op_name, arg1, arg2)
 
