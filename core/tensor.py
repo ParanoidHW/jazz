@@ -194,10 +194,10 @@ def zl_add_grad(output, x, y):
     output_shape = output.shape
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x.shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
         x.assign_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[1], y.shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[1], y_.shape)
         y.assign_grad(grads)
 
 
@@ -218,10 +218,10 @@ def zl_sub_grad(output, x, y):
     output_shape = output.shape
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x.shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
         x.assign_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = aggregate_and_reshape_grad(-output.grad, axes_to_reduce[1], y.shape)
+        grads = aggregate_and_reshape_grad(-output.grad, axes_to_reduce[1], y_.shape)
         y.assign_grad(grads)
 
 
@@ -244,11 +244,11 @@ def zl_mul_grad(output, x, y):
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
         grads = output.grad * y.values
-        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
+        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
         x.assign_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = output.grad * x.values
-        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
+        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
         y.assign_grad(grads)
 
 
@@ -271,11 +271,11 @@ def zl_truediv_grad(output, x, y):
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
         grads = output.grad / y.values
-        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
+        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
         x.assign_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = - output.grad * x.values / (y.values ** 2)
-        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
+        grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
         y.assign_grad(np.reshape(grads, y.shape))
 
 
@@ -313,6 +313,8 @@ def zl_matmul_grad(output, x, y):
     y.assign_grad(np.sum(b_grad, axis=axes_to_reduce[1]))
 
 
+# TODO: `Zhangliang` does not seem to support for `complex` data type.
+# So the inputs of the `pow` should be positive.
 @ctx_register(op_name='pow')
 def zl_pow(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
@@ -608,7 +610,8 @@ def zl_abs(x):
 
 @grad_register(op_name='abs')
 def zl_abs_grad(output, x):
-    values = np.where(x.values, x.values, 0.)
+    values = np.where(x.values > 0, 1., -1.)
+    values = np.where(x.values, values, 0.)
     if isinstance(x, Zhangliang) and x.requires_grad:
         x.assign_grad(output.grad * values)
 
@@ -674,10 +677,18 @@ def zl_log1p_grad(output, x):
 
 
 def grad_minmax(xin, zout, grad, dim=None, keepdims=False):
-    new_shape = recover_dim(xin.shape, zout.shape, dim=dim, keepdims=keepdims)
-    zout = np.reshape(zout, newshape=new_shape)
+    inputs_shapes = xin.shape
+    reduced_shapes = list(inputs_shapes)
+    if dim is None:
+        dim = list(range(xin.ndim))
+
+    for i in dim:
+        # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
+        reduced_shapes[i] = 1
+
+    zout = np.reshape(zout, newshape=reduced_shapes)
     max_value_map = xin == zout
-    nmax = np.sum(max_value_map, axis=dim)
+    nmax = np.sum(max_value_map, axis=tuple(dim))
     values = grad * max_value_map / nmax
     return values
 
@@ -749,7 +760,7 @@ def zl_clamp(x, xmin=0., xmax=1.):
 @grad_register(op_name='clamp')
 def zl_clamp_grad(output, x, xmin=0., xmax=1.):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        valid_region = np.logical_and(x.values != xmin, x.values != xmax)
+        valid_region = np.logical_and(x.values >= xmin, x.values <= xmax)
         values = output.grad * valid_region
         x.assign_grad(values)
 
@@ -822,6 +833,8 @@ def zl_arcsin(x):
 
 @grad_register(op_name='arcsin')
 def zl_arcsin_grad(output, x):
+    # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
+    # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.sqrt(1 - x.values ** 2))
         x.assign_grad(values)
@@ -837,6 +850,8 @@ def zl_arccos(x):
 
 @grad_register(op_name='arccos')
 def zl_arccos_grad(output, x):
+    # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
+    # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = - output.grad / (np.sqrt(1 - x.values ** 2))
         x.assign_grad(values)
@@ -868,7 +883,7 @@ def zl_sinh(x):
 @grad_register(op_name='sinh')
 def zl_sinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad * np.cosh(a_.values)
+        values = output.grad * np.cosh(x.values)
         x.assign_grad(values)
 
 
@@ -883,7 +898,7 @@ def zl_cosh(x):
 @grad_register(op_name='cosh')
 def zl_cosh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad * np.sinh(a_.values)
+        values = output.grad * np.sinh(x.values)
         x.assign_grad(values)
 
 
@@ -898,7 +913,7 @@ def zl_tanh(x):
 @grad_register(op_name='tanh')
 def zl_tanh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad / (np.cosh(a_.values) ** 2)
+        values = output.grad / (np.cosh(x.values) ** 2)
         x.assign_grad(values)
 
 
@@ -913,7 +928,7 @@ def zl_arcsinh(x):
 @grad_register(op_name='arcsinh')
 def zl_arcsinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad / np.sqrt(a_.values ** 2 + 1)
+        values = output.grad / np.sqrt(x.values ** 2 + 1)
         x.assign_grad(values)
 
 
@@ -927,8 +942,10 @@ def zl_arccosh(x):
 
 @grad_register(op_name='arccosh')
 def zl_arccosh_grad(output, x):
+    # TODO: the error becomes significant when the `x.values` are close to 1.
+    # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad / np.sqrt(a_.values ** 2 - 1)
+        values = output.grad / np.sqrt(x.values ** 2 - 1)
         x.assign_grad(values)
 
 
@@ -942,8 +959,10 @@ def zl_arctanh(x):
 
 @grad_register(op_name='arctanh')
 def zl_arctanh_grad(output, x):
+    # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
+    # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.grad / (1. - a_.values ** 2)
+        values = output.grad / (1. - x.values ** 2)
         x.assign_grad(values)
 
 
@@ -978,6 +997,9 @@ def zl_unsqueeze_grad(output, x, dim):
     if isinstance(input, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
         x.assign_grad(values)
+
+
+# ---------------- array-like functions -----------------
 
 
 @ctx_register(op_name='concat')

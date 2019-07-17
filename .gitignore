@@ -1,3 +1,5 @@
 .idea/
 .cache/
 .pytest_cache/
+
+*.pyc

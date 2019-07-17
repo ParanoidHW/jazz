@@ -24,7 +24,7 @@ def check_additive_dim_compatible(a_shape, ref_shape):
         # So ref_shape[i] >= a_shape[i] at every where
         if dim_a != dim_ref and dim_a != 1:
             compatible = False
-            return compatible
+            return compatible, aggregated_axes
         elif dim_a == 1:
             aggregated_axes.append(i)
     return compatible, aggregated_axes
@@ -44,7 +44,7 @@ def check_multiplicative_dim_compatible(a_shape, ref_shape):
         # So ref_shape[i] >= a_shape[i] at every where
         if dim_a != dim_ref and dim_a != 1:
             compatible = False
-            return compatible
+            return compatible, aggregated_axes
         elif dim_a == 1:
             aggregated_axes.append(i)
     return compatible, aggregated_axes
