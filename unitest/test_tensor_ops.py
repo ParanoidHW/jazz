@@ -181,6 +181,55 @@ def test_arg_free_unary_func():
             check_grad(op_name, arg1)
 
 
-def test_check_shape_changed_unary_func():
-    op_list = {'max', 'min',  'reduce_mean', 'reduce_sum', 'squeeze', 'unsqueeze'}
+def test_maxmin_unary_func():
+    def unary_arg_space():
+        vector = np.random.randn(4)
+        mat = np.random.randn(3, 4)
+        mat2 = np.random.randn(1, 4, 5)
+        allargs = [vector, mat, mat2]
+        reduced_dim = [(1,), (2,), None]
+        for arg1, dim in product(allargs, reduced_dim):
+            yield arg1, dim
 
+    def check_grad(op_name, a, dim=None):
+        max_trial = 5
+        fn = func_lib[op_name]
+        gn = grad_lib[op_name]
+        x = Zhangliang(a, requires_grad=True)
+        z = fn(x, dim=dim)
+        z.assign_grad(np.ones_like(z))
+        gn(z, x, dim=dim)
+
+        for i in range(max_trial):
+            x_var = np.random.rand(*(x.shape)) * EPS / 2
+            x_var = np.where(x_var, x_var, EPS / 2)
+
+            x_plus = Zhangliang(x + x_var)
+            x_minus = Zhangliang(x - x_var)
+
+            z_plus = fn(x_plus, dim=dim, keepdims=True)
+            z_pmask = z_plus == x_plus
+            z_minus = fn(x_minus, dim=dim, keepdims=True)
+            z_mmask = z_minus == x_minus
+            z_res = 1.0 * z_pmask.values * x_plus.values - 1.0 * z_mmask.values * x_minus.values
+
+            x_numer_grad = z_res / (2 * x_var)
+            if np.isscalar(x_numer_grad):
+                x_numer_grad = np.array([x_numer_grad], dtype=np.float64)
+
+            if not array_close(x_numer_grad, x.grad):
+                print('Test derivative of `{}` w.r.t. `x` ({}/{}) failed.\n' \
+                      ' Analytic: {}\n Numeric: {}'.format(op_name, i, max_trial, x.grad, x_numer_grad))
+            else:
+                print('Test derivative of `{}` w.r.t. `x` ({}/{}) passed.'.format(op_name, i, max_trial))
+
+    op_list = ['max', 'min']
+
+    for op_name in sorted(op_list):
+        get_arg = unary_arg_space()
+        for arg1, dim in get_arg:
+            if dim is not None and max(dim) >= len(arg1.shape):
+                continue
+            print('---------------------------------------------------------')
+            print('Arg1: {}\ndim: {}\nop: {}'.format(arg1, dim, op_name))
+            check_grad(op_name, arg1, dim=dim)

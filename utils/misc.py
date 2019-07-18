@@ -105,7 +105,7 @@ def recover_dim(ori_shape, tar_shape, dim=None, keepdims=False):
         return new_shape
 
     if dim is not None:
-        if isinstance(dim, (list, tuple)) or isinstance(dim ,collections.Iterable):
+        if isinstance(dim, (list, tuple)) or isinstance(dim, collections.Iterable):
             dim = sorted(dim)
         elif isinstance(dim, numbers.Integral):
             dim = [dim]

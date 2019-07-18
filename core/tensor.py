@@ -687,8 +687,9 @@ def grad_minmax(xin, zout, grad, dim=None, keepdims=False):
         reduced_shapes[i] = 1
 
     zout = np.reshape(zout, newshape=reduced_shapes)
+    grad = np.reshape(grad, newshape=reduced_shapes)
     max_value_map = xin == zout
-    nmax = np.sum(max_value_map, axis=tuple(dim))
+    nmax = np.sum(max_value_map, axis=tuple(dim), keepdims=True)
     values = grad * max_value_map / nmax
     return values
 
