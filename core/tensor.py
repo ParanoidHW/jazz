@@ -535,6 +535,20 @@ def zl_neg_grad(output, x):
         x.assign_grad(-output.grad)
 
 
+@ctx_register(op_name='exp')
+def zl_exp(x):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    a_ = Zhangliang(x)
+    values = np.exp(a_.values)
+    return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='exp')
+def zl_neg_grad(output, x):
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        x.assign_grad(output.grad * x.values)
+
+
 @ctx_register(op_name='reduce_mean')
 def zl_reduce_mean(x, dim=None, keepdims=False):
     local_requires_grad = is_zhangliang_requires_grad(x)

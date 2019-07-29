@@ -70,7 +70,8 @@ def create_tracer(graph_: Graph):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
-                graph_.append_node(new_node)
+                if graph_.is_grad_enabled():
+                    graph_.append_node(new_node)
                 return output
             return eval_fn
         return warp
