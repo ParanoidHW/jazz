@@ -1042,6 +1042,52 @@ def create_tracer(graph_: Graph):
 
 至此，我们完成了自动微分的部分必需内容。
 
+到此为止，在调用注册的函数执行张量运算时，计算图会将所有算子都记录下来，有时候比较不方便，比如类似``tensorflow``和``pytorch``都有只执行前馈不加入计算图的功能函数（``tensorflow``的``stop_gradient``函数和``pytorch``的``no_grad``上下文函数）；另外，如果我们编写一些算子函数可能也会需要这一功能（比如编写卷积层时可能会用到张量基本运算，但是将卷积这一过程都分解记录为张量的基础算子不是非常合适）。所以我们需要额外的一个功能，就是编写类似于``no_grad``的上下文函数。首先，为``Graph``计算图类添加一个**当前是否记入节点**的标志：
+
+```python
+class Graph:
+    def __init__(self):
+        # 省略了这部分内容
+        self._ctx_requires_grad = True
+
+    def is_grad_enabled(self):
+        return self._ctx_requires_grad
+
+    def set_grad_enable(self, enabled=True):
+        self._ctx_requires_grad = enabled
+
+    # 省略了其他函数
+```
+
+然后编写上下文函数（参考``pytorch``的``no_grad``函数）：
+
+```python
+class no_grad(object):
+    def __init__(self):
+        self.prev_state = graph.is_grad_enabled()
+
+    def __enter__(self):
+        self.prev_state = graph.is_grad_enabled()
+        graph.set_grad_enable(False)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        graph.set_grad_enable(self.prev_state)
+        return False
+
+
+class has_grad(object):
+    def __init__(self):
+        self.prev_state = graph.is_grad_enabled()
+
+    def __enter__(self):
+        self.prev_state = graph.is_grad_enabled()
+        graph.set_grad_enable(True)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        graph.set_grad_enable(self.prev_state)
+        return False
+```
+
 ### 张量广播规律
 
 张量计算过程中会有各种广播问题。由于自定义数据结构（``Zhangliang``）实际上是对``numpy.ndarray``的又一次封装，前馈过程的广播（``broadcast``）可由``numpy``内置运算确定，张量各维度需满足一定的关系才能完成广播。目前观察到张量在各个库（``numpy``，``tensorflow``和``pytorch``）内存在两类广播形式，我们这里分别称为"元素型"和"矩阵型"（下表中的``n``下标从1开始）：
