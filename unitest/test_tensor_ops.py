@@ -7,6 +7,7 @@ import numpy as np
 from core import Zhangliang
 from utils.register import func_lib, grad_lib
 from utils.misc import multiplicative_broadcast_analysis, additive_broadcast_analysis
+from utils.tracer import graph
 
 
 TOL = 1e-6
@@ -233,3 +234,17 @@ def test_maxmin_unary_func():
             print('---------------------------------------------------------')
             print('Arg1: {}\ndim: {}\nop: {}'.format(arg1, dim, op_name))
             check_grad(op_name, arg1, dim=dim)
+
+
+def test_backward():
+    x1 = Zhangliang(2, requires_grad=True)
+    x2 = Zhangliang(5, requires_grad=True)
+
+    log_fn = func_lib['log']
+    sin_fn = func_lib['sin']
+
+    f = log_fn(x1) + x1*x2 - sin_fn(x2)
+    f.assign_grad(1)
+    graph.toposort()
+
+
