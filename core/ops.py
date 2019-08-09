@@ -68,7 +68,7 @@ def sigmoid_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.values * (1. - output.values)
         values *= output.grad
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='relu')
@@ -84,7 +84,7 @@ def relu(x):
 def relu_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         ones = x.values > 0
-        x.assign_grad(output.grad * ones)
+        x.update_grad(output.grad * ones)
 
 
 @ctx_register(op_name='leaky_relu')
@@ -102,7 +102,7 @@ def lrelu_grad(output, x, alpha=.2):
     if isinstance(x, Zhangliang) and x.requires_grad:
         rate = x.values > 0
         rate[rate == 0] = alpha
-        x.assign_grad(output.grad * rate)
+        x.update_grad(output.grad * rate)
 
 
 @ctx_register(op_name='softmax')
@@ -126,7 +126,7 @@ def softmax_grad(output, x, dim=-1):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.values * (1. - output.values)
         values *= output.grad
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='softplus')
@@ -143,5 +143,5 @@ def softplus_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.exp(x.values)
         values = output.grad * values / (1. + values)
-        x.assign_grad(values)
+        x.update_grad(values)
 

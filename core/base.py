@@ -18,8 +18,8 @@ class BaseZhangliang(object):
     def assign_value(self, new_value):
         self._zhi = new_value
 
-    def assign_grad(self, grad_value):
-        self._tidu = grad_value
+    def update_grad(self, grad_value):
+        self._tidu += grad_value
 
     @property
     def grad(self):

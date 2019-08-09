@@ -52,7 +52,7 @@ def test_element_binary_func():
         x = Zhangliang(a, requires_grad=True)
         y = Zhangliang(b, requires_grad=True)
         z = fn(x, y, *args, **kwargs)
-        z.assign_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z))
         gn(z, x, y, *args, **kwargs)
         axes_to_reduce = additive_broadcast_analysis([x.shape, y.shape], z.shape)
 
@@ -133,7 +133,7 @@ def test_arg_free_unary_func():
         gn = grad_lib[op_name]
         x = Zhangliang(a, requires_grad=True)
         z = fn(x, *args, **kwargs)
-        z.assign_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z))
         gn(z, x, *args, **kwargs)
         axes_to_reduce = additive_broadcast_analysis([x.shape], z.shape)
 
@@ -198,7 +198,7 @@ def test_maxmin_unary_func():
         gn = grad_lib[op_name]
         x = Zhangliang(a, requires_grad=True)
         z = fn(x, dim=dim)
-        z.assign_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z))
         gn(z, x, dim=dim)
 
         for i in range(max_trial):
@@ -244,7 +244,8 @@ def test_backward():
     sin_fn = func_lib['sin']
 
     f = log_fn(x1) + x1*x2 - sin_fn(x2)
-    f.assign_grad(1)
-    graph.toposort()
-
-
+    f.backward()
+    print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+          "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
+          "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
+          format(5.5, 1.716, x1.grad[0], x2.grad[0]))

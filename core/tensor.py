@@ -8,7 +8,7 @@ import numpy as np
 
 from core.base import BaseZhangliang
 from utils.tracer import ctx_register, graph
-from utils.register import grad_register, func_register
+from utils.register import grad_register, func_register, grad_lib
 
 from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis, recover_dim
 
@@ -70,6 +70,28 @@ class Zhangliang(BaseZhangliang):
         data = np.arange(start, stop, step)
         return cls(data, dtype=data.dtype, requires_grad=False)
 
+    def backward(self, retain_graph=False):
+        if not self.requires_grad:
+            return
+        if not graph.is_initialized():
+            graph.toposort()
+
+        if graph.is_leaf(self):
+            self.update_grad(1.)
+
+        node = graph.get_node_by_output_tensor(self)
+        node.backprop()
+
+        # Delete the gradient after backprop.
+        if not retain_graph:
+            self._tidu = np.zeros_like(self._zhi)
+
+        parents = graph.get_parents(node)
+        # Recursive for the parent nodes
+        for node_in in parents:
+            for o in node_in.output:
+                o.backward(retain_graph)
+
     def __add__(self, other):
         return zl_add(self, other)
 
@@ -81,6 +103,9 @@ class Zhangliang(BaseZhangliang):
 
     def __rsub__(self, other):
         return zl_sub(other, self)
+
+    def __mul__(self, other):
+        return zl_mul(self, other)
 
     def __truediv__(self, other):
         return zl_truediv(self, other)
@@ -195,10 +220,10 @@ def zl_add_grad(output, x, y):
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
         grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[1], y_.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 @ctx_register(op_name='sub')
@@ -219,10 +244,10 @@ def zl_sub_grad(output, x, y):
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
         grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = aggregate_and_reshape_grad(-output.grad, axes_to_reduce[1], y_.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 @ctx_register(op_name='mul')
@@ -245,11 +270,11 @@ def zl_mul_grad(output, x, y):
         # The output definitely can broadcast with each input.
         grads = output.grad * y.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = output.grad * x.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 @ctx_register(op_name='div')
@@ -272,11 +297,11 @@ def zl_truediv_grad(output, x, y):
         # The output definitely can broadcast with each input.
         grads = output.grad / y.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = - output.grad * x.values / (y.values ** 2)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
-        y.assign_grad(np.reshape(grads, y.shape))
+        y.update_grad(np.reshape(grads, y.shape))
 
 
 @ctx_register(op_name='matmul')
@@ -306,11 +331,11 @@ def zl_matmul_grad(output, x, y):
         output_grad = output.grad
 
     a_grad = np.matmul(output_grad, b_transposed)
-    x.assign_grad(np.sum(a_grad, axis=axes_to_reduce[0]))
+    x.update_grad(np.sum(a_grad, axis=axes_to_reduce[0]))
 
     a_transposed = np.swapaxes(x.values, -1, -2)
     b_grad = np.matmul(a_transposed, output_grad)
-    y.assign_grad(np.sum(b_grad, axis=axes_to_reduce[1]))
+    y.update_grad(np.sum(b_grad, axis=axes_to_reduce[1]))
 
 
 # TODO: `Zhangliang` does not seem to support for `complex` data type.
@@ -334,12 +359,12 @@ def zl_pow_grad(output, x, y):
         power = np.where(y.values, y.values-1, 1.)
         grads = output.grad * y.values * np.power(x.values, power)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         coef = np.log(np.where(x.values, x.values, 1.))
         grads = output.grad * np.power(x.values, y.values) * coef
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 # Borrowed from
@@ -365,11 +390,11 @@ def zl_maximum_grad(output, x, y):
     if isinstance(x, Zhangliang) and x.requires_grad:
         grads = output.grad * balanced_eq(x.values, y.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = output.grad * balanced_eq(y.values, x.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 @ctx_register(op_name='minimum')
@@ -389,11 +414,11 @@ def zl_minimum_grad(output, x, y):
     if isinstance(x, Zhangliang) and x.requires_grad:
         grads = output.grad * balanced_eq(x.values, y.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
-        x.assign_grad(grads)
+        x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
         grads = output.grad * balanced_eq(y.values, x.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
-        y.assign_grad(grads)
+        y.update_grad(grads)
 
 
 # Compare functions cannot backprop gradients. No need to trace them.
@@ -532,7 +557,7 @@ def zl_neg(x):
 @grad_register(op_name='neg')
 def zl_neg_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        x.assign_grad(-output.grad)
+        x.update_grad(-output.grad)
 
 
 @ctx_register(op_name='exp')
@@ -546,7 +571,7 @@ def zl_exp(x):
 @grad_register(op_name='exp')
 def zl_neg_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        x.assign_grad(output.grad * x.values)
+        x.update_grad(output.grad * x.values)
 
 
 @ctx_register(op_name='reduce_mean')
@@ -572,7 +597,7 @@ def zl_reduce_mean_grad(output, x, dim=None, keepdims=False):
 
     if isinstance(x, Zhangliang) and x.requires_grad:
         # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
-        x.assign_grad(np.reshape(output.grad / reduced_scale, reduced_shapes))
+        x.update_grad(np.reshape(output.grad / reduced_scale, reduced_shapes))
 
 
 @ctx_register(op_name='reduce_sum')
@@ -596,7 +621,7 @@ def zl_reduce_sum_grad(output, x, dim=None, keepdims=False):
 
     if isinstance(x, Zhangliang) and x.requires_grad:
         # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
-        x.assign_grad(np.reshape(output.grad, reduced_shapes))
+        x.update_grad(np.reshape(output.grad, reduced_shapes))
 
 
 @ctx_register(op_name='reshape')
@@ -611,7 +636,7 @@ def zl_reshape(x, new_shape):
 def zl_reshape_grad(output, x, new_shape):
     old_shape = x.shape
     if isinstance(x, Zhangliang) and x.requires_grad:
-        x.assign_grad(np.reshape(output.grad, old_shape))
+        x.update_grad(np.reshape(output.grad, old_shape))
 
 
 @ctx_register(op_name='abs')
@@ -627,7 +652,7 @@ def zl_abs_grad(output, x):
     values = np.where(x.values > 0, 1., -1.)
     values = np.where(x.values, values, 0.)
     if isinstance(x, Zhangliang) and x.requires_grad:
-        x.assign_grad(output.grad * values)
+        x.update_grad(output.grad * values)
 
 
 @ctx_register(op_name='log')
@@ -642,7 +667,7 @@ def zl_log(x):
 def zl_log_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='log2')
@@ -657,7 +682,7 @@ def zl_log2(x):
 def zl_log2_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(2)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='log10')
@@ -672,7 +697,7 @@ def zl_log10(x):
 def zl_log10_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(10)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='log1p')
@@ -687,7 +712,7 @@ def zl_log1p(x):
 def zl_log1p_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1. + x.values)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 def grad_minmax(xin, zout, grad, dim=None, keepdims=False):
@@ -721,7 +746,7 @@ def zl_max_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='min')
@@ -737,7 +762,7 @@ def zl_min_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='argmax')
@@ -777,7 +802,7 @@ def zl_clamp_grad(output, x, xmin=0., xmax=1.):
     if isinstance(x, Zhangliang) and x.requires_grad:
         valid_region = np.logical_and(x.values >= xmin, x.values <= xmax)
         values = output.grad * valid_region
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @func_register(op_name='elt_not')
@@ -804,7 +829,7 @@ def zl_sin(x):
 def zl_sin_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cos(x.values)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='cos')
@@ -819,7 +844,7 @@ def zl_cos(x):
 def zl_cos_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = - output.grad * np.sin(x.values)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='tan')
@@ -834,7 +859,7 @@ def zl_tan(x):
 def zl_tan_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cos(x.values) ** 2)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 # numpy package has no `cot` function. So we skip `cot`, as well as `arccot`.
@@ -852,7 +877,7 @@ def zl_arcsin_grad(output, x):
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.sqrt(1 - x.values ** 2))
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='arccos')
@@ -869,7 +894,7 @@ def zl_arccos_grad(output, x):
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = - output.grad / (np.sqrt(1 - x.values ** 2))
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='arctan')
@@ -884,7 +909,7 @@ def zl_arctan(x):
 def zl_arctan_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1 + x.values ** 2)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='sinh')
@@ -899,7 +924,7 @@ def zl_sinh(x):
 def zl_sinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cosh(x.values)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='cosh')
@@ -914,7 +939,7 @@ def zl_cosh(x):
 def zl_cosh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.sinh(x.values)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='tanh')
@@ -929,7 +954,7 @@ def zl_tanh(x):
 def zl_tanh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cosh(x.values) ** 2)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='arcsinh')
@@ -944,7 +969,7 @@ def zl_arcsinh(x):
 def zl_arcsinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / np.sqrt(x.values ** 2 + 1)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='arccosh')
@@ -961,7 +986,7 @@ def zl_arccosh_grad(output, x):
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / np.sqrt(x.values ** 2 - 1)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='arctanh')
@@ -978,7 +1003,7 @@ def zl_arctanh_grad(output, x):
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1. - x.values ** 2)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='squeeze')
@@ -993,7 +1018,7 @@ def zl_squeeze(x, dim=None):
 def zl_squeeze_grad(output, x, dim=None):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 @ctx_register(op_name='unsqueeze')
@@ -1011,7 +1036,7 @@ def zl_unsqueeze(x, dim):
 def zl_unsqueeze_grad(output, x, dim):
     if isinstance(input, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
-        x.assign_grad(values)
+        x.update_grad(values)
 
 
 # ---------------- array-like functions -----------------
@@ -1040,7 +1065,7 @@ def zl_concat_grad(output, inputs, dim=-1):
     split_grads = np.split(output.grad, nsize, axis=dim)
     for i, a_input in enumerate(inputs):
         if a_input.requires_grad:
-            a_input.assign_grad(split_grads[i])
+            a_input.update_grad(split_grads[i])
 
 
 @ctx_register(op_name='hstack')
@@ -1066,7 +1091,7 @@ def zl_hstack_grad(output, inputs):
     split_grads = np.split(output.grad, nsize, axis=1)
     for i, a_input in enumerate(inputs):
         if a_input.requires_grad:
-            a_input.assign_grad(split_grads[i])
+            a_input.update_grad(split_grads[i])
 
 
 @ctx_register(op_name='vstack')
@@ -1092,7 +1117,7 @@ def zl_vstack_grad(output, inputs):
     split_grads = np.split(output.grad, nsize, axis=0)
     for i, a_input in enumerate(inputs):
         if a_input.requires_grad:
-            a_input.assign_grad(split_grads[i])
+            a_input.update_grad(split_grads[i])
 
 
 @ctx_register(op_name='tile')
@@ -1112,16 +1137,17 @@ def zl_tile_grad(output, x, reps):
     g = output.grad
     for axis, rep in enumerate(reps):
         g = sum(np.split(g, rep, axis))
-    x.assign_grad(g)
+    x.update_grad(g)
 
 
 if __name__ == '__main__':
     from utils.tracer import graph
-    from utils.register import func_lib, grad_lib
     a = Zhangliang([2, 3])
     a_ = Zhangliang(a)
     b = Zhangliang([-1, 0])
     c = -a
+    d = Zhangliang(a)
+    d += a
 
     z1 = a + b + 2
     graph.toposort()
