@@ -11,10 +11,7 @@ class Node(object):
     def __init__(self, input_args, input_kwargs, output, op_type):
         self.input_list = tuple(input_args)
         self.input_list_id = tuple([id(an_input) for an_input in self.input_list])
-        if isinstance(output, tuple):
-            self.output = output
-        else:
-            self.output = (output, )
+        self.output = output
         self.op_type = op_type
         self.input_kwargs = input_kwargs
         self.op_id = -1
@@ -31,7 +28,7 @@ class Node(object):
 
     def backprop(self):
         grad_fn = grad_lib[self.op_type]
-        grad_fn(*self.output, *self.input_list, **self.input_kwargs)
+        grad_fn(self.output, *self.input_list, **self.input_kwargs)
 
 
 class Graph:
@@ -77,14 +74,13 @@ class Graph:
         self._nodes_by_name[node.name] = node
 
         # Index node by the output id
-        for o in node.output:
-            self._nodes_by_id[id(o)] = node
+        self._nodes_by_id[id(node.output)] = node
 
     def toposort(self):
         for k, node_ in reversed(self._nodes_by_name.items()):
             parents = []
             for j, node_b in reversed(self._nodes_by_name.items()):
-                output = node_b.output[0]
+                output = node_b.output
                 if id(output) in node_.input_list_id:
                     parents.append(j)
                 if len(parents) == len(node_.input_list):

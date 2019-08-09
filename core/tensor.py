@@ -89,8 +89,8 @@ class Zhangliang(BaseZhangliang):
         parents = graph.get_parents(node)
         # Recursive for the parent nodes
         for node_in in parents:
-            for o in node_in.output:
-                o.backward(retain_graph)
+            o = node_in.output
+            o.backward(retain_graph)
 
     def __add__(self, other):
         return zl_add(self, other)
