@@ -92,6 +92,9 @@ class Zhangliang(BaseZhangliang):
             o = node_in.output
             o.backward(retain_graph)
 
+        if graph.is_leaf(self):
+            graph.clear_graph()
+
     def __add__(self, other):
         return zl_add(self, other)
 
@@ -107,8 +110,14 @@ class Zhangliang(BaseZhangliang):
     def __mul__(self, other):
         return zl_mul(self, other)
 
+    def __rmul__(self, other):
+        return zl_mul(other, self)
+
     def __truediv__(self, other):
         return zl_truediv(self, other)
+
+    def __rtruediv__(self, other):
+        return zl_truediv(other, self)
 
     def __abs__(self):
         return zl_abs(self)
@@ -130,6 +139,9 @@ class Zhangliang(BaseZhangliang):
 
     def __pow__(self, power, modulo=None):
         return zl_pow(self, power)
+
+    def __rpow__(self, other):
+        return zl_pow(other, self)
 
     def __ge__(self, other):
         return zl_ge(self, other)
@@ -268,11 +280,11 @@ def zl_mul_grad(output, x, y):
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
-        grads = output.grad * y.values
+        grads = output.grad * y_.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
         x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = output.grad * x.values
+        grads = output.grad * x_.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
         y.update_grad(grads)
 
@@ -295,11 +307,11 @@ def zl_truediv_grad(output, x, y):
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
-        grads = output.grad / y.values
+        grads = output.grad / y_.values
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x_.shape)
         x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = - output.grad * x.values / (y.values ** 2)
+        grads = - output.grad * x_.values / (y.values ** 2)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y_.shape)
         y.update_grad(np.reshape(grads, y.shape))
 
@@ -315,27 +327,31 @@ def zl_matmul(x, y):
 
 @grad_register(op_name='matmul')
 def zl_matmul_grad(output, x, y):
-    inputs_shapes = tuple([x.shape, y.shape])
+    x_ = Zhangliang(x)
+    y_ = Zhangliang(y)
+    inputs_shapes = tuple([x_.shape, y_.shape])
     output_shape = output.shape
     axes_to_reduce = multiplicative_broadcast_analysis(inputs_shapes, output_shape)
 
-    a_dim, b_dim = x.shape, y.shape
+    a_dim, b_dim = x_.shape, y_.shape
 
     # In case of (m, n) X (n, ) = (m, ).
     # (m, ) X (1, n) is impossible in forward mode. So maybe only inputs[1] needs to be checked.
     if len(b_dim) == 1:
-        b_transposed = y.values[np.newaxis, :]
+        b_transposed = y_.values[np.newaxis, :]
         output_grad = output.grad[..., np.newaxis]
     else:
-        b_transposed = np.swapaxes(y.values, -1, -2)
+        b_transposed = np.swapaxes(y_.values, -1, -2)
         output_grad = output.grad
 
     a_grad = np.matmul(output_grad, b_transposed)
-    x.update_grad(np.sum(a_grad, axis=axes_to_reduce[0]))
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        x.update_grad(np.sum(a_grad, axis=axes_to_reduce[0]))
 
     a_transposed = np.swapaxes(x.values, -1, -2)
     b_grad = np.matmul(a_transposed, output_grad)
-    y.update_grad(np.sum(b_grad, axis=axes_to_reduce[1]))
+    if isinstance(y, Zhangliang) and y.requires_grad:
+        y.update_grad(np.sum(b_grad, axis=axes_to_reduce[1]))
 
 
 # TODO: `Zhangliang` does not seem to support for `complex` data type.
@@ -351,18 +367,20 @@ def zl_pow(x, y):
 
 @grad_register(op_name='pow')
 def zl_pow_grad(output, x, y):
-    inputs_shapes = tuple([x.shape, y.shape])
+    x_ = Zhangliang(x)
+    y_ = Zhangliang(y)
+    inputs_shapes = tuple([x_.shape, y_.shape])
     output_shape = output.shape
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
-        power = np.where(y.values, y.values-1, 1.)
-        grads = output.grad * y.values * np.power(x.values, power)
+        power = np.where(y_.values, y_.values-1, 1.)
+        grads = output.grad * y_.values * np.power(x.values, power)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
         x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        coef = np.log(np.where(x.values, x.values, 1.))
-        grads = output.grad * np.power(x.values, y.values) * coef
+        coef = np.log(np.where(x_.values, x_.values, 1.))
+        grads = output.grad * np.power(x_.values, y.values) * coef
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
         y.update_grad(grads)
 
@@ -384,15 +402,17 @@ def zl_maximum(x, y):
 
 @grad_register(op_name='maximum')
 def zl_maximum_grad(output, x, y):
-    inputs_shapes = tuple([x.shape, y.shape])
+    x_ = Zhangliang(x)
+    y_ = Zhangliang(y)
+    inputs_shapes = tuple([x_.shape, y_.shape])
     output_shape = output.shape
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
-        grads = output.grad * balanced_eq(x.values, y.values, output.values)
+        grads = output.grad * balanced_eq(x.values, y_.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
         x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = output.grad * balanced_eq(y.values, x.values, output.values)
+        grads = output.grad * balanced_eq(y.values, x_.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
         y.update_grad(grads)
 
@@ -408,15 +428,17 @@ def zl_minimum(x, y):
 
 @grad_register(op_name='minimum')
 def zl_minimum_grad(output, x, y):
-    inputs_shapes = tuple([x.shape, y.shape])
+    x_ = Zhangliang(x)
+    y_ = Zhangliang(y)
+    inputs_shapes = tuple([x_.shape, y_.shape])
     output_shape = output.shape
     axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
     if isinstance(x, Zhangliang) and x.requires_grad:
-        grads = output.grad * balanced_eq(x.values, y.values, output.values)
+        grads = output.grad * balanced_eq(x.values, y_.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[0], x.shape)
         x.update_grad(grads)
     if isinstance(y, Zhangliang) and y.requires_grad:
-        grads = output.grad * balanced_eq(y.values, x.values, output.values)
+        grads = output.grad * balanced_eq(y.values, x_.values, output.values)
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
         y.update_grad(grads)
 
@@ -584,18 +606,17 @@ def zl_reduce_mean(x, dim=None, keepdims=False):
 
 @grad_register(op_name='reduce_mean')
 def zl_reduce_mean_grad(output, x, dim=None, keepdims=False):
-    inputs_shapes = x.shape
-    reduced_shapes = list(inputs_shapes)
-
-    if dim is None:
-        dim = list(range(x.ndim))
-    reduced_scale = 1
-    for i in dim:
-        reduced_scale *= inputs_shapes[i]
-        # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
-        reduced_shapes[i] = 1
-
     if isinstance(x, Zhangliang) and x.requires_grad:
+        inputs_shapes = x.shape
+        reduced_shapes = list(inputs_shapes)
+
+        if dim is None:
+            dim = list(range(x.ndim))
+        reduced_scale = 1
+        for i in dim:
+            reduced_scale *= inputs_shapes[i]
+            # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
+            reduced_shapes[i] = 1
         # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
         x.update_grad(np.reshape(output.grad / reduced_scale, reduced_shapes))
 
@@ -610,16 +631,15 @@ def zl_reduce_sum(x, dim=None, keepdims=False):
 
 @grad_register(op_name='reduce_sum')
 def zl_reduce_sum_grad(output, x, dim=None, keepdims=False):
-    inputs_shapes = x.shape
-    reduced_shapes = list(inputs_shapes)
-    if dim is None:
-        dim = list(range(x.ndim))
-
-    for i in dim:
-        # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
-        reduced_shapes[i] = 1
-
     if isinstance(x, Zhangliang) and x.requires_grad:
+        inputs_shapes = x.shape
+        reduced_shapes = list(inputs_shapes)
+        if dim is None:
+            dim = list(range(x.ndim))
+
+        for i in dim:
+            # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
+            reduced_shapes[i] = 1
         # We do not need the grad has the same shape as the values, but the broadcast shape is necessary.
         x.update_grad(np.reshape(output.grad, reduced_shapes))
 
@@ -634,8 +654,8 @@ def zl_reshape(x, new_shape):
 
 @grad_register(op_name='reshape')
 def zl_reshape_grad(output, x, new_shape):
-    old_shape = x.shape
     if isinstance(x, Zhangliang) and x.requires_grad:
+        old_shape = x.shape
         x.update_grad(np.reshape(output.grad, old_shape))
 
 
@@ -649,9 +669,9 @@ def zl_abs(x):
 
 @grad_register(op_name='abs')
 def zl_abs_grad(output, x):
-    values = np.where(x.values > 0, 1., -1.)
-    values = np.where(x.values, values, 0.)
     if isinstance(x, Zhangliang) and x.requires_grad:
+        values = np.where(x.values > 0, 1., -1.)
+        values = np.where(x.values, values, 0.)
         x.update_grad(output.grad * values)
 
 

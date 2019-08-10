@@ -1248,6 +1248,10 @@ class Zhangliang(BaseZhangliang):
         for node_in in parents:
             o = node_in.output
             o.backward(retain_graph)
+        
+        # 再次判断是否为叶节点。是的话，清除当前计算图，准备下次前馈
+        if graph.is_leaf(self):
+            graph.clear_graph()
 ```
 
 反传函数可选传入参数``retain_graph=False``，同样模仿``pytorch``中``tensor.backward``接口，默认为``False``，即在某节点完成反传后将其梯度数据所占内存释放。注释解释了``backward``中的每一步的用途。这里用到了``Node``类的反传，其实就是根据算子类别自动调用对应的反传函数：
@@ -1265,6 +1269,10 @@ class Node(object):
 
 ```python
 from core import sin, log
+
+"""
+测试用例1：x1和x2均为Zhangliang
+"""
 x1 = Zhangliang(2, requires_grad=True)
 x2 = Zhangliang(5, requires_grad=True)
 
@@ -1274,11 +1282,36 @@ print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
       "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
       "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
       format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+
+"""
+测试用例2：x1为张量，x2为常数
+"""
+x1 = Zhangliang(2, requires_grad=True)
+x2 = 5
+
+f = log(x1) + x1 * x2 - sin(x2)
+f.backward()
+print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+      "\tOracle grad: g_x1 = {:.5f}\n"
+      "\tResult grad: g_x1 = {:.5f}".
+      format(5.5, x1.grad[0]))
+
+"""
+测试用例3：x1为常数，x2为张量
+"""
+x1 = 2
+x2 = Zhangliang(5, requires_grad=True)
+f = log(x1) + x1 * x2 - sin(x2)
+f.backward()
+print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+      "\tOracle grad: g_x2 = {:.5f}\n"
+      "\tResult grad: g_x2 = {:.5f}".
+      format(1.716, x2.grad[0]))
 ```
 
 可以看到输出结果：
 
-![1565407103298](assets/1565407103298.png)
+![1565438235167](assets/1565438235167.png)
 
 ### 张量广播规律
 
