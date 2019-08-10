@@ -19,7 +19,15 @@ class BaseZhangliang(object):
         self._zhi = new_value
 
     def update_grad(self, grad_value):
+        # if not self.requires_grad:
+        #     raise AttributeError('Tensor requires no gradient.')
+        # if self._tidu.size == 0:
+        #     self._tidu = grad_value
+        # else:
         self._tidu += grad_value
+
+    def release(self):
+        self._tidu = np.zeros_like(self._zhi)
 
     @property
     def grad(self):

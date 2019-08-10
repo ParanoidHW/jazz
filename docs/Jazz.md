@@ -752,31 +752,113 @@ autograd自动微分库基于基础运算的重载，主要重载的是``numpy``
 为了简单起见，我们先利用``numpy``的``ndarray``作为基础，将其封装一层即作为自定义数据类，并将其命名为``Zhangliang``（“张量”拼音）：
 
 ```python
-class Zhangliang(object):
-    def __init__(self, values, dtype=np.float32):
-        self.zhi = np.array(values, dtype=dtype)
+class Zhangliang(BaseZhangliang):
+    def __init__(self, data, dtype=np.float64, requires_grad=False):
+        if isinstance(data, Zhangliang):
+            data = data.values
+        elif np.isscalar(data):
+            data = [data]
 
-     @property
+        self._zhi = np.array(data, dtype=dtype)
+        self.requires_grad = requires_grad
+        self._tidu = np.zeros_like(self._zhi)
+
+    def assign_value(self, new_value):
+        self._zhi = new_value
+
+    def update_grad(self, grad_value):
+        self._tidu += grad_value
+
+    @property
+    def grad(self):
+        if not self.requires_grad:
+            raise AttributeError('Tensor requires no gradient.')
+        else:
+            return self._tidu
+
+    @property
+    def values(self):
+        return self._zhi
+
+    @property
     def shape(self):
-        return self.zhi.shape
+        return self._zhi.shape
 
-     @property
+    @property
+    def ndim(self):
+        return self._zhi.ndim
+
+    @property
     def dtype(self):
-        return self.zhi.dtype
+        return self._zhi.dtype
 
-     @classmethod
-    def from_array(cls, values, dtype=np.float32):
-        return cls(values, dtype=dtype)
+    @property
+    def size(self):
+        return self._zhi.size
 
-     @classmethod
-    def zeros(cls, shape, dtype=np.float32):
+    def __iter__(self):
+        return self._zhi.__iter__()
+
+    def __len__(self):
+        return len(self._zhi)
+
+    def __getitem__(self, item):
+        return self._zhi[item]
+
+    def __repr__(self):
+        return self._zhi.__repr__()
+
+    def __str__(self):
+        return self._zhi.__str__()
+
+    @classmethod
+    def zeros(cls, shape, dtype=np.float64, requires_grad=False):
         zeros_ = np.zeros(shape, dtype=dtype)
-        return cls(zeros_, )
+        return cls(zeros_, requires_grad=requires_grad)
 
-     @classmethod
-    def ones(cls, shape, dtype=np.float32):
+    @classmethod
+    def ones(cls, shape, dtype=np.float64, requires_grad=False):
         ones_ = np.ones(shape, dtype=dtype)
-        return cls(ones_)
+        return cls(ones_, requires_grad=requires_grad)
+
+    @classmethod
+    def zeros_like(cls, data, dtype=np.float64, requires_grad=False):
+        shape = data.shape
+        zeros_ = np.zeros(shape, dtype=dtype)
+        return cls(zeros_, requires_grad=requires_grad)
+
+    @classmethod
+    def ones_like(cls, data, dtype=np.float64, requires_grad=False):
+        shape = data.shapes
+        ones_ = np.ones(shape, dtype=dtype)
+        return cls(ones_, requires_grad=requires_grad)
+
+    @classmethod
+    def array(cls, data, requires_grad=False):
+        if isinstance(data, Zhangliang):
+            return cls(data.values, dtype=data.dtype, requires_grad=requires_grad)
+        elif np.isscalar(data):
+            return cls([data], dtype=np.int32, requires_grad=requires_grad)
+        elif isinstance(data, (list, tuple)):
+            return cls(data, dtype=np.float64, requires_grad=requires_grad)
+        elif isinstance(data, collections.Iterable):
+            data = np.array(data)
+            return cls(data, dtype=np.float64, requires_grad=requires_grad)
+        else:
+            raise TypeError
+
+    @classmethod
+    def linspace(cls, start, stop, num):
+        data = np.linspace(start, stop, num)
+        return cls(data, dtype=data.dtype, requires_grad=False)
+
+    @classmethod
+    def arange(cls, start, stop=None, step=1):
+        if stop is None:
+            stop = start
+            start = 0
+        data = np.arange(start, stop, step)
+        return cls(data, dtype=data.dtype, requires_grad=False)
 ```
 
 目前定义的``Zhangliang``类仅包括其值（``Zhangliang.zhi``，本质就是``numpy.ndarray``），以及一些基础函数，尚未包括运算符重载。回顾下``PyTorch``和``Tensorflow``中的数据类，它们都支持``a+b``形式的调用。这在``Python``中是遵循了协议接口，调用其数据类的``__add__``方法；另一方面，在``PyTorch``和``Tensorflow``我们还能看到``tf.add(a,b)``和``torch.add(a,b)``形式的调用，这说明两个框架也存在着独立的基础算子。综合这两点，实际上我们只需要实现独立的基础算子，然后在``Zhangliang.__add__``方法中调用``add``算子即可：
@@ -853,10 +935,11 @@ def zl_truediv(a, b):
 - **如何注册前向和反向运算？**
 - **我们在编写前馈运算时，怎么跟踪和记录运算过程？**
 - **为了确定反传的执行顺序，怎么通过上述跟踪记录来获得计算图？**
+- **如何进行反传？**
 
 ### 第一个问题：如何注册前向和反向函数？
 
-相对而言比较简单：我们定义两个字典：
+第一个问题相对而言比较简单：我们定义两个字典：
 
 ```python
 forward_func = dict()
@@ -986,32 +1069,67 @@ class Node(object):
 节点类将记录每个被追踪的算子的输入张量，输入参数，算子类型以及输出张量。通过张量的先后关系，我们再定义一个计算图类用于记录每个节点，并根据输入输出关系计算反传时的拓扑顺序。计算图类定义如下：
 
 ```python
-# 计算图类
-# _op_count: 每种不同类型的算子的计数
-# _nodes_by_name: 按照添加顺序排列的节点字典；会给每个节点一个名字；
-# _topo: 计算图的反向拓扑；反传过程将按照这个拓扑顺序
-# append_node: 添加节点，会为每个节点一个名字
-# toposort: 按照拓扑顺序对节点进行排列
-# clear_graph: 清除计算图
+"""
+计算图类
+成员变量：
+  _op_count: 每种不同类型的算子的计数
+  _nodes_by_name: 按照添加顺序排列的节点字典；会给每个节点一个名字；通过节点名进行索引
+  _nodes_by_id: 按照输出Zhangliang的id对节点进行索引；在反传时用于找出对应的节点和算子
+  _topo: 计算图的反向拓扑，每个节点映射到其父节点，通过节点名进行索引
+成员函数：
+  is_initialized: 反传时用于判断是否已经进行拓扑排序
+  is_leaf: 判断某个Zhangliang所在节点是否为叶节点（即最终的输出）
+  get_node_by_output_tensor：对外接口，获取Zhangliang对应的节点
+  get_parents：对外接口，获取Zhangliang对应节点的父节点
+  append_node: 添加节点，会为每个节点一个名字
+  toposort: 按照拓扑顺序对节点进行排列
+  clear_graph: 清除计算图
+""" 
 
 class Graph:
     def __init__(self):
         self._op_count = dict()
-        self._nodes_list = OrderedDict()
+        self._nodes_by_name = OrderedDict()
+        self._nodes_by_id = OrderedDict()
         self._topo = OrderedDict()
+
+    def is_initialized(self):
+        return len(self._topo) != 0
+
+    def is_leaf(self, tensor):
+        node = self.get_node_by_output_tensor(tensor)
+        return list(self._topo.items())[0][0] == node.name
+
+    def get_node_by_output_tensor(self, tensor):
+        query_id = id(tensor)
+        node = self._nodes_by_id[query_id]
+        return node
+
+    def get_parents(self, node):
+        if not self.is_initialized():
+            self.toposort()
+        parent_name = self._topo[node.name]
+        parent_nodes = [self._nodes_by_name[p] for p in parent_name]
+        return parent_nodes
 
     def append_node(self, node: Node):
         node_type = node.op_type
         count = self._op_count.setdefault(node_type, 0)
         node.set_id(count)
         self._op_count[node_type] += 1
-        self._nodes_list[node.name] = node
+
+        # Index node by the op name
+        self._nodes_by_name[node.name] = node
+
+        # Index node by the output id
+        self._nodes_by_id[id(node.output)] = node
 
     def toposort(self):
-        for k, node_ in reversed(self._nodes_list.items()):
+        for k, node_ in reversed(self._nodes_by_name.items()):
             parents = []
-            for j, node_b in reversed(self._nodes_list.items()):
-                if id(node_b.output) in node_.input_list_id:
+            for j, node_b in reversed(self._nodes_by_name.items()):
+                output = node_b.output
+                if id(output) in node_.input_list_id:
                     parents.append(j)
                 if len(parents) == len(node_.input_list):
                     break
@@ -1019,7 +1137,8 @@ class Graph:
 
     def clear_graph(self):
         self._op_count.clear()
-        self._nodes_list.clear()
+        self._nodes_by_name.clear()
+        self._nodes_by_id.clear()
         self._topo.clear()
 ```
 
@@ -1087,6 +1206,79 @@ class has_grad(object):
         graph.set_grad_enable(self.prev_state)
         return False
 ```
+
+### 第四个问题：如何进行反传？
+
+假定我们已经获得了所有算子节点的拓扑顺序，也编写了每个算子反传函数，那么如何完成计算图的反传？实际上，在深度学习语境下，所有计算图最终只有一个输出节点，即``loss``。这是唯一的一个叶节点，从这个叶节点开始，根据拓扑顺序，我们可以依次使用反向模式进行传播。所以这也是计算图``Graph``类会有一个``is_leaf``函数的原因，叶节点总是位于反向拓扑的第一个位置。
+
+调用形式上，``pytorch``使用了``tensor.backward()``的形式，即只需调用最终输出节点的反传函数，便可对整个计算图中的节点进行反传。我们模仿这一调用形式，并在``Zhangliang``类中进行实现：
+
+```python
+class Zhangliang(BaseZhangliang):
+    # 省略其他
+	
+    def release(self):
+        self._tidu = None
+    
+    def backward(self, retain_graph=False):
+        # 检查当前节点是否需要进行反传
+        if not self.requires_grad:
+            return
+        
+        # 检查计算图是否已经完成拓扑排序
+        if not graph.is_initialized():
+            graph.toposort()
+        
+        # 检查当前节点是否为叶节点。如果是叶节点，是不会有梯度输入的，所以更新其梯度值为1
+        if graph.is_leaf(self):
+            self.update_grad(1.)
+            
+        # 通过Zhangliang的id获得对应的节点
+        node = graph.get_node_by_output_tensor(self)
+        # 调用节点对应的反传函数，将本输出Zhangliang的梯度反传到输入Zhangliang中
+        node.backprop()
+
+        # 默认不保持计算图，完成反传后释放本Zhangliang梯度数据所占内存
+        if not retain_graph:
+            self.release()
+        
+        # 获得节点的父节点
+        parents = graph.get_parents(node)
+        # 尾递归调用输入Zhangliang的backward方法继续进行反传
+        for node_in in parents:
+            o = node_in.output
+            o.backward(retain_graph)
+```
+
+反传函数可选传入参数``retain_graph=False``，同样模仿``pytorch``中``tensor.backward``接口，默认为``False``，即在某节点完成反传后将其梯度数据所占内存释放。注释解释了``backward``中的每一步的用途。这里用到了``Node``类的反传，其实就是根据算子类别自动调用对应的反传函数：
+
+```python
+class Node(object):
+    # 省略其他
+
+    def backprop(self):
+        grad_fn = grad_lib[self.op_type]
+        grad_fn(self.output, *self.input_list, **self.input_kwargs)
+```
+
+至此我们完成了梯度反传的过程。为了进行测试，我们定义函数为上文的$f(x_1,x_2)=\log{(x_1)}+x_1x_2-\sin{(x_2)}$，输入值为$(x_1,x_2)=(2,5)$，然后调用输出``Zhangliang``的``backward``函数，完成后查看$x_1$和$x_2$的梯度值：
+
+```python
+from core import sin, log
+x1 = Zhangliang(2, requires_grad=True)
+x2 = Zhangliang(5, requires_grad=True)
+
+f = log(x1) + x1*x2 - sin(x2)
+f.backward()
+print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+      "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
+      "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
+      format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+```
+
+可以看到输出结果：
+
+![1565407103298](assets/1565407103298.png)
 
 ### 张量广播规律
 

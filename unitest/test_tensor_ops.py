@@ -237,13 +237,11 @@ def test_maxmin_unary_func():
 
 
 def test_backward():
+    from core import sin, log
     x1 = Zhangliang(2, requires_grad=True)
     x2 = Zhangliang(5, requires_grad=True)
 
-    log_fn = func_lib['log']
-    sin_fn = func_lib['sin']
-
-    f = log_fn(x1) + x1*x2 - sin_fn(x2)
+    f = log(x1) + x1*x2 - sin(x2)
     f.backward()
     print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
           "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"

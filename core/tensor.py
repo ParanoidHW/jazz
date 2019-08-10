@@ -84,7 +84,7 @@ class Zhangliang(BaseZhangliang):
 
         # Delete the gradient after backprop.
         if not retain_graph:
-            self._tidu = np.zeros_like(self._zhi)
+            self.release()
 
         parents = graph.get_parents(node)
         # Recursive for the parent nodes

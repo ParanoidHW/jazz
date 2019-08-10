@@ -90,6 +90,7 @@ class Graph:
     def clear_graph(self):
         self._op_count.clear()
         self._nodes_by_name.clear()
+        self._nodes_by_id.clear()
         self._topo.clear()
 
 
