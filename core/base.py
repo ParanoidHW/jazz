@@ -14,6 +14,7 @@ class BaseZhangliang(object):
         self._zhi = np.array(data, dtype=dtype)
         self.requires_grad = requires_grad
         self._tidu = np.zeros_like(self._zhi)
+        self._format = 'nchw'
 
     def assign_value(self, new_value):
         self._zhi = new_value
@@ -55,6 +56,10 @@ class BaseZhangliang(object):
     @property
     def size(self):
         return self._zhi.size
+
+    @property
+    def format(self):
+        return self._format
 
     def __iter__(self):
         return self._zhi.__iter__()

@@ -238,6 +238,7 @@ def test_maxmin_unary_func():
 
 def test_backward():
     from core import sin, log
+    from core.grad_mode import no_grad, has_grad
     x1 = Zhangliang(2, requires_grad=True)
     x2 = Zhangliang(5, requires_grad=True)
 
@@ -266,3 +267,34 @@ def test_backward():
           "\tOracle grad: g_x2 = {:.5f}\n"
           "\tResult grad: g_x2 = {:.5f}".
           format(1.716, x2.grad[0]))
+
+    # Test no_grad
+    x1 = Zhangliang(2, requires_grad=True)
+    x2 = Zhangliang(5, requires_grad=True)
+
+    with no_grad():
+        f = log(x1) + x1 * x2 - sin(x2)
+
+    try:
+        f.backward()
+        print('This line should not be print.')
+    except:
+        print('Backprop is disabled in `no_grad` situation.')
+
+    # Test has_grad
+    x1 = Zhangliang(2, requires_grad=True)
+    x2 = Zhangliang(5, requires_grad=True)
+
+    with no_grad():
+        with has_grad():
+            f = log(x1) + x1 * x2 - sin(x2)
+
+    try:
+        f.backward()
+        print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+              "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
+              "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
+              format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+    except:
+        print('This line should not be print.')
+

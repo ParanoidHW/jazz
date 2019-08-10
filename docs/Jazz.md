@@ -1221,17 +1221,20 @@ class Zhangliang(BaseZhangliang):
         self._tidu = None
     
     def backward(self, retain_graph=False):
-        # 检查当前节点是否需要进行反传
-        if not self.requires_grad:
-            return
-        
         # 检查计算图是否已经完成拓扑排序
         if not graph.is_initialized():
             graph.toposort()
-        
-        # 检查当前节点是否为叶节点。如果是叶节点，是不会有梯度输入的，所以更新其梯度值为1
-        if graph.is_leaf(self):
+            
+        # 检查当前节点是否为叶节点。
+        # 如果是叶节点且支持梯度，该Zhangliang是不会有梯度输入的，所以更新其梯度值为1；
+        # 如果是叶节点但不支持梯度，那么这个函数不应该被调用，报错；
+        # 如果不是叶节点且不支持梯度，说明到了某个输出点或分离点，直接返回不报错
+        if graph.is_leaf(self) and self.requires_grad:
             self.update_grad(1.)
+        elif graph.is_leaf(self) and (not self.requires_grad):
+            raise AttributeError('Zhangliang does not requires grad.')
+        elif (not graph.is_leaf(self)) and (not self.requires_grad):
+            return
             
         # 通过Zhangliang的id获得对应的节点
         node = graph.get_node_by_output_tensor(self)
@@ -1268,8 +1271,6 @@ class Node(object):
 至此我们完成了梯度反传的过程。为了进行测试，我们定义函数为上文的$f(x_1,x_2)=\log{(x_1)}+x_1x_2-\sin{(x_2)}$，输入值为$(x_1,x_2)=(2,5)$，然后调用输出``Zhangliang``的``backward``函数，完成后查看$x_1$和$x_2$的梯度值：
 
 ```python
-from core import sin, log
-
 """
 测试用例1：x1和x2均为Zhangliang
 """
@@ -1307,11 +1308,45 @@ print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
       "\tOracle grad: g_x2 = {:.5f}\n"
       "\tResult grad: g_x2 = {:.5f}".
       format(1.716, x2.grad[0]))
+
+"""
+测试用例4：no_grad环境
+"""
+x1 = Zhangliang(2, requires_grad=True)
+x2 = Zhangliang(5, requires_grad=True)
+
+with no_grad():
+    f = log(x1) + x1 * x2 - sin(x2)
+
+try:
+    f.backward()
+    print('This line should not be print.')
+    except:
+        print('Backprop is disabled in `no_grad` situation.')
+
+"""
+测试用例5：has_grad环境
+"""
+x1 = Zhangliang(2, requires_grad=True)
+x2 = Zhangliang(5, requires_grad=True)
+
+with no_grad():
+    with has_grad():
+        f = log(x1) + x1 * x2 - sin(x2)
+
+try:
+    f.backward()
+    print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
+          "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
+          "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
+          format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+    except:
+        print('This line should not be print.')
 ```
 
 可以看到输出结果：
 
-![1565438235167](assets/1565438235167.png)
+![1565448743588](assets/1565448743588.png)
 
 ### 张量广播规律
 

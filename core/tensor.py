@@ -71,13 +71,15 @@ class Zhangliang(BaseZhangliang):
         return cls(data, dtype=data.dtype, requires_grad=False)
 
     def backward(self, retain_graph=False):
-        if not self.requires_grad:
-            return
         if not graph.is_initialized():
             graph.toposort()
 
-        if graph.is_leaf(self):
+        if graph.is_leaf(self) and self.requires_grad:
             self.update_grad(1.)
+        elif graph.is_leaf(self) and (not self.requires_grad):
+            raise AttributeError('Zhangliang does not requires grad.')
+        elif (not graph.is_leaf(self)) and (not self.requires_grad):
+            return
 
         node = graph.get_node_by_output_tensor(self)
         node.backprop()
@@ -90,7 +92,8 @@ class Zhangliang(BaseZhangliang):
         # Recursive for the parent nodes
         for node_in in parents:
             o = node_in.output
-            o.backward(retain_graph)
+            if isinstance(o, Zhangliang):
+                o.backward(retain_graph)
 
         if graph.is_leaf(self):
             graph.clear_graph()
