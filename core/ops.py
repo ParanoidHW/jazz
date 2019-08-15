@@ -2,8 +2,10 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import numpy as np
 from core.grad_mode import no_grad
 from core.tensor import *
+from core.tensor_utils import im2col, get_conv_size
 
 
 @ctx_register(op_name='biased_fc')
@@ -172,3 +174,24 @@ def softplus_grad(output, x):
         values = output.grad * values / (1. + values)
         x.update_grad(values)
 
+
+@ctx_register(op_name='conv2d')
+def conv2d(x, k, stride=1, padding=0, dilatation=1):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    x_ = Zhangliang(x)
+    k_ = Zhangliang(k)
+    cout, cin, kh, kw = k_.shape
+    assert cin == x_.shape[1], "Expected feature dimension {}, but got {}.". \
+        format(cin, x_.shape[1])
+    x_col, target_size = im2col(x_.values, (kh, kw), stride, padding, dilatation)
+    k_row = np.reshape(k_.values, (cout, cin*kh*kw))
+    y = np.matmul(k_row, x_col)
+    y_old_shape = y.shape
+    y_new_shape = y_old_shape[:-1] + target_size
+    y = np.reshape(y, y_new_shape)
+    return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='conv2d')
+def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
+    pass

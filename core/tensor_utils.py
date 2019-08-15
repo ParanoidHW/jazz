@@ -6,19 +6,41 @@ import numpy as np
 from core.tensor import Zhangliang
 
 
+def get_conv_size(im_size, k, s, p, d):
+    h, w = im_size
+    kh, kw = k
+    sh, sw = s
+    pl, pr, pu, pd = p
+    dh, dw = d
+
+    hout = int((h + pl + pr - (kh - 1) * dh - 1) / sh) + 1
+    wout = int((w + pu + pd - (kw - 1) * dw - 1) / sw) + 1
+    return hout, wout
+
+def get_convtr_size(im_size, k, s, p, d):
+    h, w = im_size
+    kh, kw = k
+    sh, sw = s
+    pl, pr, pu, pd = p
+    dh, dw = d
+
+    hin = (h - 1)*sh + 1 + (kh-1)*dh - (pl + pr)
+    win = (w - 1)*sw + 1 + (kw-1)*dw - (pu + pd)
+    return hin, win
+
+
 def im2col(im, kernel, stride, padding, dilation):
-    # TODO: remember to define the data format. Default to NCHW
+    # TODO: define the data format. Default to NCHW
     n, cin, hin, win = im.shape
     kh, kw = kernel
     sh, sw = stride
     pl, pr, pu, pd = padding
     dh, dw = dilation
 
-    hout = int((hin + pl + pr - (kh - 1)*dh - 1) / sh) + 1
-    wout = int((win + pu + pd - (kw - 1)*dw - 1) / sw) + 1
+    hout, wout = get_conv_size((hin, win), kernel, stride, padding, dilation)
 
-    data = np.pad(im.values, pad_width=((pl, pr), (pu, pd)))
-    values = np.zeros((n, kh*kw, cin, hout*wout), dtype=im.dtype)
+    data = np.pad(im, pad_width=((pl, pr), (pu, pd)))
+    values = np.zeros((n, cin, kh*kw, hout*wout), dtype=im.dtype)
     for y in np.arange(hout):
         ys = sh*y
         ye = ys + (kh - 1)*dh + 1
@@ -29,16 +51,23 @@ def im2col(im, kernel, stride, padding, dilation):
             xind = np.arange(xs, xe, dw)
             ind = y*wout+x
             values[:, :, :, ind] = np.reshape(data[:, :, yind, xind], newshape=(n, cin, kh*kw))
-    values = np.reshape(values, (kh*kw*cin, hout*wout))
-    return Zhangliang(values, dtype=im.dtype, requires_grad=False)
+    values = np.reshape(values, (n, cin*kh*kw, hout*wout))
+    return Zhangliang(values, dtype=im.dtype, requires_grad=False), (hout, wout)
 
 
 def im2col_backward(im, num_filters, kernel, stride, padding, dilation):
     pass
 
 
-def col2im(im, num_filters, kernel, stride, padding, dilation):
-    pass
+def col2im(im, kernel, stride, padding, dilation):
+    n, nfeat, npos = im.shape
+    kh, kw = kernel
+    sh, sw = stride
+    pl, pr, pu, pd = padding
+    dh, dw = dilation
+
+    new_im = np.zeros((n, nfeat, npos), dtype=im.dtype)
+
 
 
 def col2im_backward(im, num_filters, kernel, stride, padding, dilation):
