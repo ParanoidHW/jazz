@@ -9,7 +9,7 @@ from core.tensor_utils import im2col, get_conv_size, col2im_backward, get_convtr
 
 
 @ctx_register(op_name='linear')
-def x_matmul_w(x, w):
+def linear(x, w):
     # Register the whole layer as an op, rather than decompose it into several base ops.
     # Therefore inside the layers, we set no_grad() not to add the interleave nodes into the graph.
     # Note: `x` `w` and `b` should be a Zhangliang.
@@ -20,7 +20,7 @@ def x_matmul_w(x, w):
 
 
 @grad_register(op_name='linear')
-def x_matmul_w_grad(output, x, w):
+def linear_grad(output, x, w):
     zl_matmul_grad(output, x, w)
 
 
