@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import numpy as np
 from core.grad_mode import no_grad
 from core.tensor import *
-from core.tensor_utils import im2col, get_conv_size, col2im_backward, get_convtr_size
+from core.tensor_utils import im2col, get_conv_size, col2im_backward, get_convtr_size, get_op_settings
 
 
 @ctx_register(op_name='linear')
@@ -127,6 +127,7 @@ def softplus_grad(output, x):
 
 @ctx_register(op_name='conv2d')
 def conv2d(x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -148,6 +149,7 @@ def conv2d(x, k, stride=1, padding=0, dilation=1):
 
 @grad_register(op_name='conv2d')
 def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
     n, cin, hin, win = x_.shape
@@ -177,6 +179,7 @@ def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
 
 @ctx_register(op_name='conv2d_transpose')
 def conv2d_transpose(x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -199,6 +202,7 @@ def conv2d_transpose(x, k, stride=1, padding=0, dilation=1):
 
 @grad_register(op_name='conv2d_transpose')
 def conv2d_transpose_grad(output, x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
     n, cout, hout, wout = x_.shape
@@ -223,3 +227,14 @@ def conv2d_transpose_grad(output, x, k, stride=1, padding=0, dilation=1):
         k_grad = np.reshape(k_grad, k.shape)
         k.update_grad(k_grad)
 
+
+@ctx_register(op_name='max_pool2d')
+def max_pool2d(x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
+    pass
+
+
+@grad_register(op_name='max_pool2d')
+def max_pool2d_grad(outputs, x, k, stride=1, padding=0, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, padding, dilation)
+    pass

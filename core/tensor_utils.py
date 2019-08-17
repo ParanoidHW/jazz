@@ -2,6 +2,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import numbers
+import collections
 import numpy as np
 from core.tensor import Zhangliang
 
@@ -39,7 +41,7 @@ def im2col(im, ksize, stride, padding, dilation):
 
     hout, wout = get_conv_size((hin, win), ksize, stride, padding, dilation)
 
-    data = np.pad(im, pad_width=((pl, pr), (pu, pd)))
+    data = np.pad(im, pad_width=((0, 0), (0, 0), (pl, pr), (pu, pd)), mode='constant', constant_values=0)
     values = np.zeros((n, cin, kh*kw, hout*wout), dtype=im.dtype)
     for y in np.arange(hout):
         ys = sh*y
@@ -50,7 +52,7 @@ def im2col(im, ksize, stride, padding, dilation):
             xe = xs + (kw - 1) * dw + 1
             xind = np.arange(xs, xe, dw)
             ind = y*wout+x
-            values[:, :, :, ind] = np.reshape(data[:, :, yind, xind], newshape=(n, cin, kh*kw))
+            values[:, :, :, ind] = np.reshape(data[:, :, yind[:, None], xind[None, :]], newshape=(n, cin, kh*kw))
     values = np.reshape(values, (n, cin*kh*kw, hout*wout))
     return Zhangliang(values, dtype=im.dtype, requires_grad=False), (hout, wout)
 
@@ -71,7 +73,7 @@ def col2im_backward(im, hin, win, stride, padding, dilation):
     dh, dw = dilation
 
     new_im = np.zeros((n, cin, hin, win), dtype=im.dtype)
-    new_im = np.pad(new_im, pad_width=((pl, pr), (pu, pd)))
+    new_im = np.pad(new_im, pad_width=((0, 0), (0, 0), (pl, pr), (pu, pd)), mode='constant', constant_values=0)
     for y in np.arange(hout):
         ys = sh*y
         ye = ys + (kh - 1)*dh + 1
@@ -80,6 +82,48 @@ def col2im_backward(im, hin, win, stride, padding, dilation):
             xs = sw * x
             xe = xs + (kw - 1) * dw + 1
             xind = np.arange(xs, xe, dw)
-            new_im[:,:,yind,xind] += np.reshape(im[:,:,:,:,y,x], (n, cin, kh*kw))
+            new_im[:,:,yind[:, None], xind[None, :]] += np.reshape(im[:,:,:,:,y,x], (n, cin, kh*kw))
     n, cin, hin_pad, win_pad = new_im.shape
     return new_im[:,:, pl:hin_pad-pr, pu:win_pad-pd]
+
+
+def get_op_settings(stride, padding, dilation):
+    if isinstance(stride, numbers.Integral):
+        stride_ = (stride, ) * 2
+    elif isinstance(stride, (tuple, list)):
+        if len(stride) == 2:
+            stride_ = tuple(stride)
+        elif len(stride) == 1:
+            stride_ = tuple(stride) * 2
+        else:
+            raise ValueError
+    else:
+        raise TypeError
+
+    if isinstance(padding, numbers.Integral):
+        padding_ = (padding, padding, padding, padding)
+    elif isinstance(padding, (tuple, list)):
+        if len(padding) == 2:
+            padding_ = tuple(padding) + (0, 0)
+        elif len(padding) == 4:
+            padding_ = tuple(padding)
+        elif len(padding) == 1:
+            padding_ = tuple(padding) * 4
+        else:
+            raise ValueError
+    else:
+        raise TypeError
+
+    if isinstance(dilation, numbers.Integral):
+        dilation_ = (dilation, ) * 2
+    elif isinstance(dilation, (tuple, list)):
+        if len(dilation) == 2:
+            dilation_ = tuple(dilation)
+        elif len(dilation) == 1:
+            dilation_ = tuple(dilation) * 2
+        else:
+            raise ValueError
+    else:
+        raise TypeError
+
+    return stride_, padding_, dilation_

@@ -22,3 +22,7 @@ from .tensor import (
     zl_lt as lt
 )
 from .tensor import Zhangliang
+from .ops import (
+    conv2d,
+    conv2d_transpose
+)
