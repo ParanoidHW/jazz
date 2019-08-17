@@ -5,60 +5,10 @@ from __future__ import absolute_import
 import numpy as np
 from core.grad_mode import no_grad
 from core.tensor import *
-from core.tensor_utils import im2col, get_conv_size
+from core.tensor_utils import im2col, get_conv_size, col2im_backward, get_convtr_size
 
 
-@ctx_register(op_name='biased_fc')
-def x_matmul_w_plus_b(x, w, b):
-    # Register the whole layer as an op, rather than decompose it into several base ops.
-    # Therefore inside the layers, we set no_grad() not to add the interleave nodes into the graph.
-    # Note: `x` `w` and `b` should be a Zhangliang.
-    # TODO: add type check.
-    with no_grad():
-        xw = zl_matmul(x, w)
-        y = xw + b
-    return y
-
-
-@grad_register(op_name='biased_fc')
-def x_matmul_w_plus_b_grad(output, x, w, b):
-    x_ = Zhangliang(x)
-    w_ = Zhangliang(w)
-    b_ = Zhangliang(b)
-
-    inputs_shapes = tuple([x_.shape, w_.shape])
-    output_shape = output.shape
-    matmul_to_reduce = multiplicative_broadcast_analysis(inputs_shapes, output_shape)
-    plus_to_reduce = additive_broadcast_analysis([b_.shape], output_shape)
-
-    x_dim, w_dim = x_.shape, w_.shape
-
-    # In case of (m, n) X (n, ) = (m, ).
-    # (m, ) X (1, n) is impossible in forward mode. So maybe only inputs[1] needs to be checked.
-    if len(w_dim) == 1:
-        w_transposed = w_.values[np.newaxis, :]
-        output_grad = output.grad[..., np.newaxis]
-    else:
-        w_transposed = np.swapaxes(w_.values, -1, -2)
-        output_grad = output.grad
-
-    if isinstance(x, Zhangliang) and x.requires_grad:
-        x_grad = np.matmul(output_grad, w_transposed)
-        grads = aggregate_and_reshape_grad(x_grad, matmul_to_reduce[0], x.shape)
-        x.update_grad(grads)
-
-    if isinstance(w, Zhangliang) and w.requires_grad:
-        x_transposed = np.swapaxes(x.values, -1, -2)
-        w_grad = np.matmul(x_transposed, output_grad)
-        grads = aggregate_and_reshape_grad(w_grad, matmul_to_reduce[1], w.shape)
-        w.update_grad(grads)
-
-    if isinstance(b, Zhangliang) and b.requires_grad:
-        grads = aggregate_and_reshape_grad(output.grad, plus_to_reduce[0], b.shape)
-        b.update_grad(grads)
-
-
-@ctx_register(op_name='unbiased_fc')
+@ctx_register(op_name='linear')
 def x_matmul_w(x, w):
     # Register the whole layer as an op, rather than decompose it into several base ops.
     # Therefore inside the layers, we set no_grad() not to add the interleave nodes into the graph.
@@ -69,7 +19,7 @@ def x_matmul_w(x, w):
     return y
 
 
-@grad_register(op_name='unbiased_fc')
+@grad_register(op_name='linear')
 def x_matmul_w_grad(output, x, w):
     zl_matmul_grad(output, x, w)
 
@@ -176,15 +126,19 @@ def softplus_grad(output, x):
 
 
 @ctx_register(op_name='conv2d')
-def conv2d(x, k, stride=1, padding=0, dilatation=1):
-    local_requires_grad = is_zhangliang_requires_grad(x)
+def conv2d(x, k, stride=1, padding=0, dilation=1):
+    local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
     cout, cin, kh, kw = k_.shape
     assert cin == x_.shape[1], "Expected feature dimension {}, but got {}.". \
         format(cin, x_.shape[1])
-    x_col, target_size = im2col(x_.values, (kh, kw), stride, padding, dilatation)
+
+    # Cover each region into a column
+    x_col, target_size = im2col(x_.values, (kh, kw), stride, padding, dilation)
+    # Reshape the kernel into rows
     k_row = np.reshape(k_.values, (cout, cin*kh*kw))
+    # Apply convolution
     y = np.matmul(k_row, x_col)
     y_old_shape = y.shape
     y_new_shape = y_old_shape[:-1] + target_size
@@ -194,4 +148,78 @@ def conv2d(x, k, stride=1, padding=0, dilatation=1):
 
 @grad_register(op_name='conv2d')
 def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
-    pass
+    x_ = Zhangliang(x)
+    k_ = Zhangliang(k)
+    n, cin, hin, win = x_.shape
+    _, cout, hout, wout = output.shape
+    kcout, kcin, kh, kw = k_.shape
+
+    # Reshape the kernel into rows
+    k_row = np.reshape(k_.values, (cout, cin * kh * kw))
+    output_grad = np.reshape(output.grad, (n, cout, -1))  # [n,cout,hout*wout]
+
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        # Apply convolution transpose
+        x_grad = np.matmul(k_row.T, output_grad)
+        x_grad = np.reshape(x_grad, newshape=(n,cin,kh,kw,hout,wout))
+        x_grad = col2im_backward(x_grad, hin, win, stride, padding, dilation)
+        x.update_grad(x_grad)
+
+    if isinstance(k, Zhangliang) and k.requires_grad:
+        # Apply convolution transpose
+        x_col, _ = im2col(x_.values, (kh, kw), stride, padding, dilation)  # [n,cin*kh*kw,hout*wout]
+        x_col = np.transpose(x_col, (0,2,1))                # [n,hout*wout,cin*kh*kw]
+        k_grad = np.matmul(output_grad, x_col)              # [n,cout,cin*kh*kw]
+        k_grad = np.sum(k_grad, axis=0)                     # [cout, cin*kh*kw]
+        k_grad = np.reshape(k_grad, k.shape)
+        k.update_grad(k_grad)
+
+
+@ctx_register(op_name='conv2d_transpose')
+def conv2d_transpose(x, k, stride=1, padding=0, dilation=1):
+    local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
+    x_ = Zhangliang(x)
+    k_ = Zhangliang(k)
+
+    cout, cin, kh, kw = k_.shape
+    n, _, hout, wout = x_.shape
+    assert cout == x_.shape[1], "Expected feature dimension {}, but got {}.". \
+        format(cout, x_.shape[1])
+
+    k_row = np.reshape(k_.values, (cout, cin * kh * kw))
+    x_rows = np.reshape(x_.values, (n,cout,-1))
+
+    hin, win = get_convtr_size(x_.shape[-2:], k_.shape[-2:], stride, padding, dilation)
+    y = np.matmul(k_row.T, x_rows)  # [n, cin*kh*kw, hout*wout]
+    y = np.reshape(y, newshape=(n, cin, kh, kw, hout, wout))
+    y = col2im_backward(y, hin, win, stride, padding, dilation)
+
+    return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='conv2d_transpose')
+def conv2d_transpose_grad(output, x, k, stride=1, padding=0, dilation=1):
+    x_ = Zhangliang(x)
+    k_ = Zhangliang(k)
+    n, cout, hout, wout = x_.shape
+    _, cin, hin, win = output.shape
+    kcout, kcin, kh, kw = k_.shape
+
+    # Cover each region into a column
+    grad_col, _ = im2col(output.grad, (kh, kw), stride, padding, dilation)  # [n,cin*kh*kw, hout*wout]
+
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        # Reshape the kernel into rows
+        k_row = np.reshape(k_.values, (cout, cin * kh * kw))  # [cout, cin*kh*kw]
+        x_grad = np.matmul(k_row, grad_col)                   # [n, cout, hout*wout]
+        x_grad = np.reshape(x_grad, x.shape)
+        x.update_grad(x_grad)
+
+    if isinstance(k, Zhangliang) and k.requires_grad:
+        # Reshape x into rows
+        x_row = np.reshape(x_.values, (n, cout, hout * wout))  # [n, cout, hout*wout]
+        k_grad = np.matmul(x_row, grad_col.T)                  # [n, cout, cin*kh*kw]
+        k_grad = np.sum(k_grad, axis=0)
+        k_grad = np.reshape(k_grad, k.shape)
+        k.update_grad(k_grad)
+
