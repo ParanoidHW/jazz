@@ -82,7 +82,8 @@ def col2im_backward(im, hin, win, stride, padding, dilation):
             xs = sw * x
             xe = xs + (kw - 1) * dw + 1
             xind = np.arange(xs, xe, dw)
-            new_im[:,:,yind[:, None], xind[None, :]] += np.reshape(im[:,:,:,:,y,x], (n, cin, kh*kw))
+            # new_im[:,:,yind[:, None], xind[None, :]] += np.reshape(im[:,:,:,:,y,x], (n, cin, kh*kw))
+            new_im[:,:,yind[:, None], xind[None, :]] += im[:,:,:,:,y,x]
     n, cin, hin_pad, win_pad = new_im.shape
     return new_im[:,:, pl:hin_pad-pr, pu:win_pad-pd]
 
