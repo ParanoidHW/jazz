@@ -19,6 +19,7 @@ def get_conv_size(im_size, k, s, p, d):
     wout = int((w + pu + pd - (kw - 1) * dw - 1) / sw) + 1
     return hout, wout
 
+
 def get_convtr_size(im_size, k, s, p, d):
     h, w = im_size
     kh, kw = k

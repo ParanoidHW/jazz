@@ -126,7 +126,7 @@ def softplus_grad(output, x):
 
 
 @ctx_register(op_name='conv2d')
-def conv2d(x, k, stride=1, padding=0, dilation=1):
+def conv2d(x, k, bias=None, stride=1, padding=0, dilation=1):
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
     x_ = Zhangliang(x)
@@ -144,11 +144,15 @@ def conv2d(x, k, stride=1, padding=0, dilation=1):
     y_old_shape = y.shape
     y_new_shape = y_old_shape[:-1] + target_size
     y = np.reshape(y, y_new_shape)
+    if bias is not None:
+        bias_ = Zhangliang(bias)
+        y = y + bias_.values
+
     return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
 @grad_register(op_name='conv2d')
-def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
+def conv2d_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1):
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -176,9 +180,16 @@ def conv2d_grad(output, x, k, stride=1, padding=0, dilation=1):
         k_grad = np.reshape(k_grad, k.shape)
         k.update_grad(k_grad)
 
+    if bias is not None and isinstance(bias, Zhangliang) and bias.requires_grad:
+        inputs_shapes = tuple([bias.shape])
+        output_shape = output.shape
+        axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
+        bias.update_grad(grads)
+
 
 @ctx_register(op_name='conv2d_transpose')
-def conv2d_transpose(x, k, stride=1, padding=0, dilation=1):
+def conv2d_transpose(x, k, bias=None, stride=1, padding=0, dilation=1):
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(k)
     x_ = Zhangliang(x)
@@ -197,11 +208,15 @@ def conv2d_transpose(x, k, stride=1, padding=0, dilation=1):
     y = np.reshape(y, newshape=(n, cin, kh, kw, hout, wout))
     y = col2im_backward(y, hin, win, stride, padding, dilation)
 
+    if bias is not None:
+        bias_ = Zhangliang(bias)
+        y = y + bias_.values
+
     return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
 @grad_register(op_name='conv2d_transpose')
-def conv2d_transpose_grad(output, x, k, stride=1, padding=0, dilation=1):
+def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1):
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -226,6 +241,13 @@ def conv2d_transpose_grad(output, x, k, stride=1, padding=0, dilation=1):
         k_grad = np.sum(k_grad, axis=0)
         k_grad = np.reshape(k_grad, k.shape)
         k.update_grad(k_grad)
+
+    if bias is not None and isinstance(bias, Zhangliang) and bias.requires_grad:
+        inputs_shapes = tuple([bias.shape])
+        output_shape = output.shape
+        axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
+        bias.update_grad(grads)
 
 
 @ctx_register(op_name='max_pool2d')

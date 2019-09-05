@@ -300,7 +300,7 @@ def test_backward():
 
 
 def test_conv_forward():
-    from utils.register import func_lib, grad_lib
+    from utils.register import func_lib
     kernel = np.array(
         [[[[6.1059e-01, 7.3151e-01, 3.8562e-01],
            [1.0263e-01, 4.0959e-01, 4.5504e-01],
@@ -394,8 +394,6 @@ def test_conv_forward():
     conv_fn = func_lib['conv2d']
     pred = conv_fn(x, kernel, stride=1, padding=1)
     print(array_close(pred.values, gt, tol=1e-5, rtol=1e-5))
-    # Due to the precision, may return False
-    # print(pred.values)
 
     sum_fn = func_lib['reduce_sum']
     loss = sum_fn(pred)

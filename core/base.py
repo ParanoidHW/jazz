@@ -20,8 +20,8 @@ class BaseZhangliang(object):
         self._zhi = new_value
 
     def update_grad(self, grad_value):
-        # if not self.requires_grad:
-        #     raise AttributeError('Tensor requires no gradient.')
+        if not self.requires_grad:
+            raise AttributeError('Tensor requires no gradient.')
         # if self._tidu.size == 0:
         #     self._tidu = grad_value
         # else:
@@ -34,8 +34,7 @@ class BaseZhangliang(object):
     def grad(self):
         if not self.requires_grad:
             raise AttributeError('Tensor requires no gradient.')
-        else:
-            return self._tidu
+        return self._tidu
 
     @property
     def values(self):
