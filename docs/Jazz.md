@@ -4,6 +4,11 @@
 
 ## 内容
 
+参考资料：
+
+- [CSE 599W： Systems for ML博客](http://jcf94.com/2018/10/04/2018-10-04-cse559w/)
+- [CSE 599W： Systems for ML](http://dlsys.cs.washington.edu/)
+
 ![1561893769127](assets/1561893769127.png)
 
 - 调用API
@@ -16,6 +21,12 @@
 - 计算图执行和优化
 
 ## 程序求导的四种方法
+
+参考资料：
+
+- [自动微分(Automatic Differentiation)简介](https://blog.csdn.net/aws3217150/article/details/70214422)
+- [Automatic Differentiation in Machine Learning: a Survey](https://arxiv.org/pdf/1502.05767.pdf)
+- [Dual Numbers & Automatic Differentiation](https://blog.demofox.org/2014/12/30/dual-numbers-automatic-differentiation/)
 
 #### 手动求导 Manual Derivatives
 
@@ -444,6 +455,11 @@ $$
 | Tangent        | Python   | 源码转换   | 前向/反向 | https://github.com/google/tangent         |
 
 ###### 源码转换型AD方法原理
+
+参考资料：
+
+-  [[python] ast模块](https://zhuanlan.zhihu.com/p/21945624)
+- [ast --- 抽象语法树](https://docs.python.org/zh-cn/3/library/ast.html)
 
 ``Tangent``库通过对``Python``抽象语法树的修改，为部分系统数学运算以及``numpy``部分基础运算添加了自定义的求导函数并自动生成代码。具体代码尚未完全理解，这里自己简单记录下原理，并附上一些简单的代码辅助说明。
 
@@ -1321,8 +1337,8 @@ with no_grad():
 try:
     f.backward()
     print('This line should not be print.')
-    except:
-        print('Backprop is disabled in `no_grad` situation.')
+except:
+    print('Backprop is disabled in `no_grad` situation.')
 
 """
 测试用例5：has_grad环境
@@ -1340,13 +1356,15 @@ try:
           "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
           "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
           format(5.5, 1.716, x1.grad[0], x2.grad[0]))
-    except:
-        print('This line should not be print.')
+except:
+    print('This line should not be print.')
 ```
 
 可以看到输出结果：
 
 ![1565448743588](assets/1565448743588.png)
+
+## 计算库实现探究
 
 ### 张量广播规律
 
@@ -1610,7 +1628,16 @@ $$
 
 ### 卷积算子
 
-卷积作为现代神经网络中最重要的算子，其实现需要特定的优化。卷积过程本质上仍可看成是对图像每个局部区域内的信息进行矩阵乘法，因此实现卷积算子时力求将这一个过程进行加速和优化。这其中又涉及到算法具体实现时的各种问题，计算调度、缓存调度、并行计算等（事实上其他算子也有这些问题，只是在卷积算子中这些问题更加突出）。由于笔者能力有限，暂时未完成这一部分。详情可以参考资料[Leonardo的博客](https://leonardoaraujosantos.gitbooks.io/artificial-inteligence/content/making_faster.html)、[Sahnimanas的博客](https://sahnimanas.github.io/post/anatomy-of-a-high-performance-convolution/)、[Jonathan Ragan-Kelley的博士论文](http://people.csail.mit.edu/jrk/jrkthesis.pdf)、[贾扬清的note](https://github.com/Yangqing/caffe/wiki/Convolution-in-Caffe:-a-memo)、[fbfft论文](https://research.fb.com/wp-content/uploads/2016/11/fast-convolutional-nets-with-fbfft-a-gpu-performance-evaluation.pdf?)、[winograd论文](https://arxiv.org/pdf/1509.09308.pdf)及其他。
+参考资料：
+
+- [FAST CONVOLUTIONAL NETS WITH fbfft : A GPU PERFORMANCE EVALUATION](https://research.fb.com/wp-content/uploads/2016/11/fast-convolutional-nets-with-fbfft-a-gpu-performance-evaluation.pdf?)
+- [Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/pdf/1509.09308.pdf)
+- [Leonardo的博客](https://leonardoaraujosantos.gitbooks.io/artificial-inteligence/content/making_faster.html)
+- [Sahnimanas的博客](https://sahnimanas.github.io/post/anatomy-of-a-high-performance-convolution/)
+- [Jonathan Ragan-Kelley的博士论文](http://people.csail.mit.edu/jrk/jrkthesis.pdf)
+- [贾扬清的备忘录](https://github.com/Yangqing/caffe/wiki/Convolution-in-Caffe:-a-memo)
+
+卷积作为现代神经网络中最重要的算子，其实现需要特定的优化。卷积过程本质上仍可看成是对图像每个局部区域内的信息进行矩阵乘法，因此实现卷积算子时力求将这一个过程进行加速和优化。这其中又涉及到算法具体实现时的各种问题，计算调度、缓存调度、并行计算等（事实上其他算子也有这些问题，只是在卷积算子中这些问题更加突出）。由于笔者能力有限，暂时未完成这一部分。
 
 目前各大框架对卷积的实现有四种方法：
 
@@ -1712,8 +1739,202 @@ z&=\dfrac{e^{\tilde{x}}}{\mathrm{ReduceSum}(e^{\tilde{x}},dim)}
 \end{align}
 $$
 
+### 优化方法
 
-## hook技术
+参考资料：
+
+- [Rprop](https://florian.github.io/rprop/)
+- [Caffe Solver](http://caffe.berkeleyvision.org/tutorial/solver.html)
+- [深度学习最全优化方法总结比较（SGD，Adagrad，Adadelta，Adam，Adamax，Nadam）](https://zhuanlan.zhihu.com/p/22252270)
+
+常见的网络优化方法包括以下若干种：
+
+| 方法                                                         | 优化规则                                                     | 备注                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------- |
+| [Momentum SGD](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/tricks-2012.pdf) | $v_{t+1}=\mu v_t-\alpha\nabla L_{w}\\ w_{t+1}=w_t+v_{t+1}$   | $\mu$是动量，$\alpha$是学习率 |
+| [AdaGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) | $w_{t+1}=w_t-\dfrac{\alpha}{\sqrt{\sum_{\tau=1}^t(\nabla L_{w})^2_\tau}}\nabla L_w$ |                               |
+| [AdaDelta](https://arxiv.org/pdf/1212.5701.pdf)              | $v_{t+1}=-\dfrac{RMS[v]_{t}}{RMS[g]_{t+1}}g_{t+1}\\w_{t+1}=w_t+v_{t+1}$ | RMS是root of mean squared     |
+| [Adam](https://arxiv.org/pdf/1412.6980.pdf)                  | $m_t=\beta_1m_{t-1}+(1-\beta_1)\nabla L_w\\v_t=\beta_2v_{t-1}+(1-\beta_2)(\nabla L_w)^2\\w_{t+1}=w_t-\alpha\dfrac{\sqrt{1-\beta_2^t}}{1-\beta_1^t}\dfrac{m_t}{\sqrt{v_t}+\epsilon}$ | 自动矩估计                    |
+| [Nesterov](http://www.cs.toronto.edu/~fritz/absps/momentum.pdf) | $v_{t+1}=\mu v_t-\alpha\nabla L_{w_t+\mu v_t}\\w_{t+1}=w_t+v_{t+1}$ |                               |
+| [RMSprop](http://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf) | $MS(w_t)=\delta MS(w_{t-1})+(1-\delta)\nabla L_{w}^2\\w_{t+1}=w_t-\alpha\dfrac{\nabla L_w}{\sqrt{MS(w_t)}}$ |                               |
+| [Rprop](http://www.neuro.nigmatec.ru/materials/themeid_17/riedmiller93direct.pdf) | $v_{t+1}=-\alpha_{t+1}*sgn\left(\nabla L_w\right)\\w_{t+1}=w_{t}+v_{t+1}\\\alpha_{t+1}=\begin{cases}\min(\alpha_t*a,\alpha_{max}), ~if~\nabla_{w_{t+1}}L*\nabla_{w_t}L>0\\\max(\alpha_t*b,\alpha_{min}), ~if~\nabla_{w_{t+1}}L*\nabla_{w_t}L<0\\\alpha_t,~otherwise\end{cases}$ | $a>1>b$，典型值$a=1.2,~b=.5$  |
+
+#### 随机梯度下降SGD
+
+简单回顾下随机梯度下降方法。在没有解析解的情况下，我们知道优化一个函数往往是通过一些其他方法，其中梯度下降方法就是最重要的一种。其目的是从某个点开始，沿着当前点的负梯度方向逐步找到函数的极小值点。
+
+![img](./assets/gd.png)
+
+对于机器学习任务，可能有大量数据用于学习$\{(x_1,y_1),(x_2,y_2),...,(x_N,y_N)\}$。学习时，一种方法就是每次都使用所有数据对模型参数进行调整：
+$$
+\begin{align}
+\Delta w&=-\sum_{i=1}^N \nabla_w L(x_i,y_i) \\
+w_{t+1}&=w_t + \alpha\Delta w
+\end{align}
+$$
+若干次迭代优化达到收敛即可。当$N$较小时，上式方法仍比较高效；但随着$N$的逐渐增大，同时计算所有样本对这一过程成为了训练的瓶颈。无论是内存、显存或者算力，都无法支持如此大量数据同时进行训练和迭代；而逐批输入数据再汇总则具有巨大的时间开销，也是不可取的。因此随机梯度下降方法也就应运而生。它是对上式的一种极端简化：每次迭代只取一个样本计算梯度。
+$$
+\begin{align}
+\Delta w&=-\nabla_w L(x_i, y_i)\\
+w_{t+1}&=w_t + \alpha\Delta w
+\end{align}
+$$
+而这个样本也是每次迭代随机选取的。由于SGD不知道每次使用的是什么数据，或者之前是否已使用过，这种随机性以及一个独立样本内包含的噪声干扰能够一定程度上提升模型的泛化能力。SGD的收敛性有Robbins-Siegmund定理保证，只需要满足$\sum_t\alpha_t^2<\infin$以及$\sum_t\alpha_t=\infin$。
+
+但上述极端简化方法仍存在一个问题：样本噪声在提升鲁棒性和泛化性的同时，也使得SGD收敛得非常慢。所以在实现上，现代的SGD了吸收了两种极端情况的各自优点，将单例更新修改为了批数据更新：
+$$
+\begin{align}
+\Delta w&=-\sum_{i=1}^B\nabla_w L(x_i, y_i)\\
+w_{t+1}&=w_t + \alpha\Delta w
+\end{align}
+$$
+其中$B$是批大小。基于批的SGD既提高了单例SGD的收敛速度，也保留了样本的随机性使得模型更具泛化性能。当然SGD本身又有可改进之处。
+
+#### 二阶优化方法
+
+在介绍SGD的各种改进方法之前，有必要介绍下二阶的优化方法。我们称普通的梯度下降方法是一阶的，因为它们只用到了函数$\mathcal{L}$对参数$w$的一阶导数。事实上，优化方法可以使用更高阶的信息，比如二阶优化方法（Newton法、拟Newton法等）用到了Hessian矩阵来调整演化的反向：
+$$
+\Delta w=-\dfrac{1}{|\mathrm{diag}(H_t)|+\mu}\nabla_wL
+$$
+通常，高阶优化方法比一阶方法具有更快的收敛速度，当然也是又代价的：需要计算$\mathcal{L}$对参数$w$的二阶导数（Hessian矩阵），这是一个时间复杂度和空间复杂度都很高的过程。
+
+#### Momentum SGD （带动量的SGD）
+
+SGD存在一个问题是会产生振荡，因此收敛更难更慢。动量方法是SGD最常用最有效的一种改进，其思想是增强梯度持续指向方向的演化速度，减缓梯度符号变化之处的演化进程。做到这两点只需要一个小小的改进：
+$$
+\begin{align}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\alpha\sum_{i=1}^B\nabla_w L(x_i, y_i)\\
+w_{t+1}&=w_t + \Delta w_{t+1}
+\end{align}
+$$
+其中$\rho\in[0,1]$是动量参数。通过引入动量$\rho$，梯度演化方法将受到历史演化方向的影响。在梯度主方向，演化速度会累计提升加速；而在异常点，新的梯度方向影响较小，也就避免了参数在某个点附近振荡，加速了优化过程。
+
+#### Nesterov Accelerated Gradient
+
+Yurii Nesterov观察到动量方法的一个问题：动量SGD无法预见到极值点应该减小演化速度。当优化达到某个极值点时，优化速度应该减小并趋于0；而由于动量的存在，动量SGD需要很长时间才能减小演化速度，甚至错过极值点。Nesterov的解决方法简单直接：相比于计算当前参数的梯度，我们可以前瞻一步查看下一步参数的梯度方向。如果这个未来的梯度方向与当前方向是反向的，那么应该减小当前的演化速度：
+$$
+\begin{align}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\alpha\sum_{i=1}^B\nabla_{w+\rho\Delta w} L(x_i, y_i)\\
+w_{t+1}&=w_t + \Delta w_{t+1}
+\end{align}
+$$
+这一方法能够根据梯度大小和符号自适应调整演化速度。
+
+#### Resilient Propagation (Rprop)
+
+弹性反向传播基于一个有趣的发现：梯度下降优化过程很可能与梯度绝对数值大小无关，而与梯度的符号有关。为了说明这一点，定义一个函数$f$，然后相应地定义另外两个函数，都是对$f$赋予一个scale量：
+
+![1568019883178](assets/1568019883178.png)
+
+第二、第三个图与原函数$f$相差一个尺度量。显然三者有一个相同的最优点，但是三个函数的各点的梯度绝对数值却也差了一个scale。于是，在不知道理论函数与实际函数的尺度情况下，确定演化步长$\alpha$是个比较困难的事情。基于梯度的绝对数值来确定学习率就可能导致优化过程无法收敛到极值点。``Rprop``方法提出使用梯度符号来进行优化，并且提出一种自适应学习率的方法来调整演化步长：
+$$
+\begin{align}
+v_{t+1}&=-\alpha_{t+1}*sgn\left(\nabla L_w\right)\\
+w_{t+1}&=w_{t}+v_{t+1}\\
+\alpha_{t+1}&=\begin{cases}\min(\alpha_t*a,\alpha_{max}), ~if~\nabla_{w_{t+1}}L*\nabla_{w_t}L>0\\\max(\alpha_t*b,\alpha_{min}), ~if~\nabla_{w_{t+1}}L*\nabla_{w_t}L<0\\\alpha_t,~otherwise\end{cases}
+\end{align}
+$$
+``Rprop``的另一个优点是，能够根据每个参数梯度的数值大小自适应调整参数的学习率。换言之，由于量级不同，我们可能很难找到一个全局的学习率适合于所有参数，但是``Rprop``使得每个不同的参数都具有自己的学习率，这就能够克服梯度量级不同的问题。当然``Rprop``也有自己的缺陷，比如``Rprop``只适用于大批次数据，而对小批次数据不太适合。这是因为不同批次数据的梯度符号可能会不同，小批次数据的梯度符号变动较频繁，导致``Rprop``学习无法收敛。
+
+#### RMSprop
+
+正因为``Rprop``无法用于小批次数据，Tieleman提出了``RMSprop``将``Rprop``的思想应用于小批次数据。其想法也很简单：``Rprop``对每个batch都会除以一个不同的数，那么为什么不对相邻mini-batch除以不同的scale呢（并且每批次的scale只是略有不同）？实现这个思想的方法也很简单，只需要维护一个浮动的统计数据：
+$$
+\begin{align}
+MS(w_t)&=\delta MS(w_{t-1})+(1-\delta)\nabla L_{w}^2\\
+w_{t+1}&=w_t-\alpha\dfrac{\nabla L_w}{\sqrt{MS(w_t)}}
+\end{align}
+$$
+其中$\delta$默认取$0.9$（Tieleman论文）或者$0.99$（Caffe默认）
+
+#### AdaGrad
+
+``AdaGrad``是另一种自适应学习率的方法。类似与``RMSprop``，其梯度被除以了一个尺度量：
+$$
+\begin{align}
+MS(w_t)&=MS(w_{t-1})+\nabla L_{w}^2\\
+w_{t+1}&=w_t-\alpha\dfrac{\nabla L_w}{\sqrt{MS(w_t)}}
+\end{align}
+$$
+注意到第一式与``RMSprop``中略有不同。在``RMSprop``中，浮动量$MS(w_t)$是由手动设定的数值$\delta$控制更新的，为固定值；而``AdaGrad``中是按照迭代次数$t$进行累计。这么做也有一个额外的优点，即学习率自主地随着时间减小，类似于退火技术。但是这也带来几个问题：
+
+- ``AdaGrad``方法对于初始值比较敏感。比如，初始值具有较大的梯度值，那么后续所有的学习率实际上都被缩小了，造成学习缓慢；如果选择手动增大初始学习率，这反而又造成``AdaGrad``方法对初始学习率敏感了。
+- 学习率将随着训练过程的进行一直减小，直到无法再学习。
+
+#### AdaDelta
+
+``AdaDelta``着重针对``AdaGrad``的上述两个缺点，做了两点改进：
+
+- 将梯度平方累计过程改为在一个窗口的时间；
+- 一阶方法忽略了数值单位，所以使用近似二阶数据来弥补
+
+事实上第一点与``RMSprop``的表达式是一致的，即：
+$$
+\begin{align}
+E[g^2]_t&=\rho E[g^2]_{t-1}+(1-\rho)g^2_t\\
+RMS[g]_t&=\sqrt{E[g^2]_t+\varepsilon}\\
+v_{t}&=-\dfrac{\alpha}{RMS[g]_t}g_t
+\end{align}
+$$
+其中$g_t=\nabla_{w_t}L$为$t$时刻的梯度。第二点，在一阶优化方法中，梯度和参数的度量单位都是被忽略的，都是有问题的：
+$$
+\mathrm{units~of}~\Delta w\propto\mathrm{units~of}~\nabla_wL\propto\dfrac{\partial\mathcal{L}}{\partial w}\propto\dfrac{1}{\mathrm{units~of}~x}
+$$
+相比之下二阶方法则保证了度量单位的统一：
+$$
+\mathrm{units~of~}\Delta w\propto H^{-1}\nabla_wL\propto\dfrac{\frac{\partial\mathcal{L}}{\partial w}}{\frac{\partial^2\mathcal{L}}{\partial w^2}}\propto\mathrm{units~of~}x
+$$
+可以看到，一阶方法和二阶方法在度量单位上相差了两级。而由于：
+$$
+\Delta w=\dfrac{\frac{\partial\mathcal{L}}{\partial w}}{\frac{\partial^2\mathcal{L}}{\partial w^2}}\Rightarrow\dfrac{1}{\frac{\partial^2\mathcal{L}}{\partial w^2}}=\dfrac{\Delta w}{\frac{\partial\mathcal{L}}{\partial w}}
+$$
+我们只需要在现有梯度更新的过程中加入类似于二阶导数倒数的scale即可：
+$$
+\begin{align}
+v_{t+1}&=-\dfrac{RMS[v]_t}{RMS[g]_{t+1}}g_{t+1}\\
+w_{t+1}&=w_t+v_{t+1}
+\end{align}
+$$
+
+#### Adaptive Moments Esimation (Adam)
+
+``Adam``方法集合了``AdaGrad``的优点（较适用于稀疏梯度）与``RMSprop``的优点，具有诸多优点：
+
+- 对于梯度的赋值不敏感
+- 演化步长由超参数控制
+- 不需要稳态优化目标
+- 能够适用于稀疏梯度
+- 自动步长退火
+
+``Adam``方法也很简单：直接用浮动数据（running average）来拟合和估计一阶矩和二阶矩，然后计算梯度方向：
+$$
+\begin{align}
+m_t&=\beta_1m_{t-1}+(1-\beta_1)g_t\\
+v_t&=\beta_2v_{t-1}+(1-\beta_2)g_t^2\\
+w_{t+1}&=w_t-\alpha\dfrac{\sqrt{1-\beta_2^t}}{1-\beta_1^t}\dfrac{m_t}{\sqrt{v_t}+\epsilon}
+\end{align}
+$$
+这一形式与``RMSprop``的动量版本非常相似。不同之处在于，``RMSprop``的动量版本是依靠梯度的幅值来调整动量，而``Adam``则是直接维护和估计了梯度的二阶矩；另外``RMSprop``缺少有偏修正量（bias-correction term），在稀疏梯度的应用中会造成较大步长而使得优化过程发散。
+
+#### AdaMax
+
+``AdaMax``是``Adam``的一个变体。``Adam``实际上在梯度更新时使用了一个``L2``范数进行scale，这可以推广到$Lp$范数。而当$p\rightarrow\infin$时就得到了：
+$$
+\begin{align}
+m_t&=\beta_1m_{t-1}+(1-\beta_1)g_t\\
+u_t&=\lim_{p\rightarrow\infin}(v_t)^{1/p}=\max(\beta_2\cdot u_{t-1},|g_t|)\\
+w_{t+1}&=w_t-\alpha\dfrac{1}{1-\beta_1^t}\dfrac{m_t}{u_t+\epsilon}
+\end{align}
+$$
+
+## 其他知识
+
+### hook技术
+
+参考资料：
+
+- [PyTorch 学习笔记（六）：PyTorch hook 和关于 PyTorch backward 过程的理解](https://www.pytorchtutorial.com/pytorch-note6-pytorch-hook-and-pytorch-backward/)
+- [pytorch中的钩子（Hook）有何作用？](https://www.zhihu.com/question/61044004/answer/183682138)
 
 ``PyTorch``使用了一种hook方法来捕捉模型在前馈和反馈时的中间数据。由于AD的设计，调用损失的backward方法后各结点的梯度逐个计算完成并释放计算图，所以无法通过模型来获得中间结果的一些数据，所以使用了**钩子**（hook）技术来抓取这些数据保存到一个新的变量中。
 
@@ -1783,29 +2004,3 @@ $$
 | 自动微分社区 | http://www.autodiff.org/ | 有关自动微分的内容 |
 
 
-
-## 参考资料
-
-[1] [自动微分(Automatic Differentiation)简介](https://blog.csdn.net/aws3217150/article/details/70214422)
-
-[2] [Automatic Differentiation in Machine Learning: a Survey](https://arxiv.org/pdf/1502.05767.pdf)
-
-[3] [Dual Numbers & Automatic Differentiation](https://blog.demofox.org/2014/12/30/dual-numbers-automatic-differentiation/)
-
-[4] [CSE 599W： Systems for ML博客](http://jcf94.com/2018/10/04/2018-10-04-cse559w/)
-
-[5] [CSE 599W： Systems for ML](http://dlsys.cs.washington.edu/)
-
-[6] [PyTorch 学习笔记（六）：PyTorch hook 和关于 PyTorch backward 过程的理解](https://www.pytorchtutorial.com/pytorch-note6-pytorch-hook-and-pytorch-backward/)
-
-[7] [pytorch中的钩子（Hook）有何作用？](https://www.zhihu.com/question/61044004/answer/183682138)
-
-[8] [详解Pytorch中的网络构造](https://zhuanlan.zhihu.com/p/53927068)
-
-[9] [[python] ast模块](https://zhuanlan.zhihu.com/p/21945624)
-
-[10] [ast --- 抽象语法树](https://docs.python.org/zh-cn/3/library/ast.html)
-
-[11] [FAST CONVOLUTIONAL NETS WITH fbfft : A GPU PERFORMANCE EVALUATION](https://research.fb.com/wp-content/uploads/2016/11/fast-convolutional-nets-with-fbfft-a-gpu-performance-evaluation.pdf?)
-
-[12] [Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/pdf/1509.09308.pdf)
