@@ -98,6 +98,9 @@ class Zhangliang(BaseZhangliang):
         if graph.is_leaf(self):
             graph.clear_graph()
 
+    def detach(self):
+        return Zhangliang(self._zhi, dtype=self.dtype, requires_grad=False)
+
     def __add__(self, other):
         return zl_add(self, other)
 

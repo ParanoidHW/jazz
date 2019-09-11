@@ -1744,6 +1744,8 @@ $$
 - [Rprop](https://florian.github.io/rprop/)
 - [Caffe Solver](http://caffe.berkeleyvision.org/tutorial/solver.html)
 - [深度学习最全优化方法总结比较（SGD，Adagrad，Adadelta，Adam，Adamax，Nadam）](https://zhuanlan.zhihu.com/p/22252270)
+- [Types of Optimization Algorithms used in Neural Networks and Ways to Optimize Gradient Descent](https://towardsdatascience.com/types-of-optimization-algorithms-used-in-neural-networks-and-ways-to-optimize-gradient-95ae5d39529f)
+- [PyTorch与caffe中SGD算法实现的一点小区别](https://zhuanlan.zhihu.com/p/43016574)
 
 常见的网络优化方法包括以下若干种：
 
@@ -1801,11 +1803,34 @@ $$
 SGD存在一个问题是会产生振荡，因此收敛更难更慢。动量方法是SGD最常用最有效的一种改进，其思想是增强梯度持续指向方向的演化速度，减缓梯度符号变化之处的演化进程。做到这两点只需要一个小小的改进：
 $$
 \begin{align}
-\Delta w_{t+1}&=\rho\Delta w_{t}-\alpha\sum_{i=1}^B\nabla_w L(x_i, y_i)\\
-w_{t+1}&=w_t + \Delta w_{t+1}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\alpha\sum_{i=1}^B\nabla_w L(x_i, y_i)\label{eq:naive sgd A}\\
+w_{t+1}&=w_t + \Delta w_{t+1}\label{eq:naive sgd B}
 \end{align}
 $$
 其中$\rho\in[0,1]$是动量参数。通过引入动量$\rho$，梯度演化方法将受到历史演化方向的影响。在梯度主方向，演化速度会累计提升加速；而在异常点，新的梯度方向影响较小，也就避免了参数在某个点附近振荡，加速了优化过程。
+
+这里需要提到一点，事实上根据FAIR的[论文](https://arxiv.org/pdf/1706.02677.pdf)，朴素的动量SGD的学习率不是立即生效的，因为学习率$\alpha$只是被应用在了新的梯度上；当$\alpha$发生变化时，动量方向仍旧保持为前一时刻的方向，并且需要很长时间才能调整到新的方向。所以``PyTorch``在实现优化器时，使用的不是$\eqref{eq:naive sgd A}$和$\eqref{eq:naive sgd B}$，而是调整为：
+$$
+\begin{align}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\sum_{i=1}^B\nabla_w L(x_i, y_i)\label{eq:fair sgd A}\\
+w_{t+1}&=w_t + \alpha\Delta w_{t+1}\label{eq:fair sgd B}
+\end{align}
+$$
+这样在$\alpha$改变时演化立即就能生效。这还带来一个额外的好处，就是在实施**权重衰减**时也能避免衰减项主导演化速度和方向。考察权重衰减项$\frac{\lambda}{2}||w||^2$，通常这一项是单独加入更新中的。按照式$\eqref{eq:naive sgd A}$，加入衰减后的权重更新变为：
+$$
+\begin{align}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\alpha\sum_{i=1}^B\nabla_w L(x_i, y_i)-\lambda w_t\label{eq:naive sgd 2A}\\
+w_{t+1}&=w_t + \Delta w_{t+1}\label{eq:naive sgd 2B}
+\end{align}
+$$
+那么在更新权重时，如果学习率很小，衰减项将占据主导地位从而影响收敛和网络性能。如果按照``PyTorch``的实现方法，加入衰减的权重更新则变为了：
+$$
+\begin{align}
+\Delta w_{t+1}&=\rho\Delta w_{t}-\sum_{i=1}^B\nabla_w L(x_i, y_i)-\lambda w_t\\
+w_{t+1}&=w_t + \alpha\Delta w_{t+1}\label{eq:fair sgd 2B}
+\end{align}
+$$
+可以看到，在``PyTorch``版本的SGD中，衰减项对演化速度和方向的影响要小于原实现。
 
 #### Nesterov Accelerated Gradient
 
@@ -1850,7 +1875,7 @@ $$
 ``AdaGrad``是另一种自适应学习率的方法。类似与``RMSprop``，其梯度被除以了一个尺度量：
 $$
 \begin{align}
-MS(w_t)&=MS(w_{t-1})+\nabla L_{w}^2\\
+MS(w_t)&=MS(w_{t-1})+(\nabla L_{w})^2\\
 w_{t+1}&=w_t-\alpha\dfrac{\nabla L_w}{\sqrt{MS(w_t)}}
 \end{align}
 $$
