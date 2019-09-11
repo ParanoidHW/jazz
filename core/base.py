@@ -13,7 +13,7 @@ class BaseZhangliang(object):
     def __init__(self, data, dtype=np.float64, requires_grad=False):
         self._zhi = np.array(data, dtype=dtype)
         self.requires_grad = requires_grad
-        self._tidu = np.zeros_like(self._zhi)
+        self._tidu = None
         self._format = 'nchw'
 
     def assign_value(self, new_value):
@@ -22,13 +22,13 @@ class BaseZhangliang(object):
     def update_grad(self, grad_value):
         if not self.requires_grad:
             raise AttributeError('Tensor requires no gradient.')
-        # if self._tidu.size == 0:
-        #     self._tidu = grad_value
-        # else:
+        if self._tidu is None:
+            self._tidu = np.zeros_like(self._zhi)
         self._tidu += grad_value
 
     def release(self):
-        self._tidu = np.zeros_like(self._zhi)
+        # self._tidu = np.zeros_like(self._zhi)
+        self._tidu = None
 
     @property
     def grad(self):

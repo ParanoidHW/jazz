@@ -95,6 +95,13 @@ class Zhangliang(BaseZhangliang):
             if isinstance(o, Zhangliang):
                 o.backward(retain_graph)
 
+        # If the recursive reaches a node whose inputs are the input to the graph,
+        # we may consider release the gradients.
+        # Comment the following lines for debug.
+        # if len(parents) == 0:
+        #     for tensor_in in node.input_list:
+        #         tensor_in.release()
+
         if graph.is_leaf(self):
             graph.clear_graph()
 
