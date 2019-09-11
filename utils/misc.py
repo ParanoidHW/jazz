@@ -116,3 +116,25 @@ def recover_dim(ori_shape, tar_shape, dim=None, keepdims=False):
     for d in dim:
         new_shape[d] = 1
     return new_shape
+
+
+# Monotonically checking
+def strictly_increasing(l):
+    """
+    :param l: l should be iterable
+    :return:
+    """
+    return all(x<y for x,y in zip(l, l[1:]))
+
+
+def strictly_decreasing(l):
+    return all(x>y for x,y in zip(l, l[1:]))
+
+
+def non_increasing(l):
+    return all(x<=y for x,y in zip(l, l[1:]))
+
+
+def non_decreasing(l):
+    return all(x>=y for x,y in zip(l, l[1:]))
+

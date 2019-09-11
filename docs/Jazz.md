@@ -1620,58 +1620,11 @@ $$
 
 ##### 浮点数精度问题
 
-在编写测试脚本时发现一个问题：``np.float32``精度比较低，经常导致测试通不过。改成``np.float64``稍微好一点。但是实际使用时，资料[2]指出，神经网络其实可以允许一定的截断误差，而且这些截断误差可能有利于网络的训练（比如跳出局部最优点）。因此，测试时使用``np.float64``，而实际使用时``np.float32``即可。
+在编写测试脚本时发现一个问题：``np.float32``精度比较低，经常导致测试通不过。改成``np.float64``稍微好一点。但是实际使用时，神经网络其实可以允许一定的截断误差，而且这些截断误差可能有利于网络的训练（比如跳出局部最优点）。因此，测试时使用``np.float64``，而实际使用时``np.float32``即可。
 
 ### 算子实现
 
-这一节探讨下各种网络算子的实现问题，也会简单分析下各种算子的梯度计算问题。梯度计算这一过程，事实上大部分都能在网上找到计算公式，但是自己实现过程中还是需要推导一下，这一过程中也能更好地理解其工程考虑。
-
-### 卷积算子
-
-参考资料：
-
-- [FAST CONVOLUTIONAL NETS WITH fbfft : A GPU PERFORMANCE EVALUATION](https://research.fb.com/wp-content/uploads/2016/11/fast-convolutional-nets-with-fbfft-a-gpu-performance-evaluation.pdf?)
-- [Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/pdf/1509.09308.pdf)
-- [Leonardo的博客](https://leonardoaraujosantos.gitbooks.io/artificial-inteligence/content/making_faster.html)
-- [Sahnimanas的博客](https://sahnimanas.github.io/post/anatomy-of-a-high-performance-convolution/)
-- [Jonathan Ragan-Kelley的博士论文](http://people.csail.mit.edu/jrk/jrkthesis.pdf)
-- [贾扬清的备忘录](https://github.com/Yangqing/caffe/wiki/Convolution-in-Caffe:-a-memo)
-
-卷积作为现代神经网络中最重要的算子，其实现需要特定的优化。卷积过程本质上仍可看成是对图像每个局部区域内的信息进行矩阵乘法，因此实现卷积算子时力求将这一个过程进行加速和优化。这其中又涉及到算法具体实现时的各种问题，计算调度、缓存调度、并行计算等（事实上其他算子也有这些问题，只是在卷积算子中这些问题更加突出）。由于笔者能力有限，暂时未完成这一部分。
-
-目前各大框架对卷积的实现有四种方法：
-
-- 直接计算
-- 通过``im2col``方法，将卷积完全转化为两个矩阵的乘法
-- 通过``FFT``进行计算
-- 通过``winograd``方法
-
-#### 直接计算
-
-![](./assets/conv_naive.png)
-
-朴素计算方法比较直观，给定一个$cin$通道数的特征图/图像，一个卷积核对每个通道内的数据进行滑动窗口内元素乘法加和运算，如此生成一个$cin$通道的中间特征图，再将各通道数据进行求和获得最终的输出。这种运算可以用于$cout$个不同的卷积核同时进行运算，最终形成$cout$通道的输出特征图。
-很明显，朴素计算方法没有任何的优化，假定输入特征图大小为$S\times n\times n\times f$，卷积核大小$f'\times f\times k\times k$，步长$1$，没有$padding=1$，输出特征图大小为$S\times n\times n\times f'$，实际上乘法执行次数为$Sff'n^2k^2$，加法执行次数为$Sff'n^2k^2$。我们知道计算机里面乘法的运算时间比加法大很多。将“一次乘法+一次加法”称为一个“FLOP”，那么朴素计算所需的复杂度可表示为$O(Sff'n^2k^2)$ FLOPs。
-
-#### 通过``im2col``方法
-
-![](./assets/conv_im2col.png)
-
-观察卷积运算过程，其实就是每个位置上的特征数据与对应位置的核参数进行相乘后，再对局部区域进行求和的操作，再对各通道求和，本质就可看成是矩阵/向量之间的乘法。所以``im2col``的思路就是将特征图局部和卷积核进行展开，处理成矩阵或向量来完成运算。这样展开成大矩阵，通过矩阵乘法对卷积运算进行加速。我们知道矩阵乘法已经有了加速的方法，因此卷积的效率可以进一步提高。上图中展示了一个具体过程。
-
-#### 通过FFT进行计算
-
-卷积过程顾名思义，来自于信号处理邻域。那么在信号处理中常用的傅里叶变换自然也可用于与实现卷积的计算，而且比朴素方法更加高效：
-
-![1567601537995](assets/1567601537995.png)
-
-其中$\circ$是点对点乘积，$*$是共轭。相比于朴素算法的$O(Sff'n^2k^2)$复杂度，通过FFT计算卷积的复杂度只需要$O(Sff'n^2+(Sf+ff'+Sf')n^2\log n)$。基于FFT的卷积方法通常将空间维度$n$分解为若干个基础卷积算子的组合，比如$2\times2$，$3\times3$，$5\times5$，$7\times7$，计算这些组合的结果后再计算总的输出结果。如果$n$不能分解为这些质数卷积核的组合，那么就比$n$大且能分解为上述质数组合的最快的点数$n'$的卷积，然后再取对应的值。由于FFT的性质，在卷积核较小问题规模也较小时，基于FFT的卷积性能反而可能不如朴素方法；但随着问题规模的增大，或者卷积核较大时，基于FFT的卷积性能要远远好于朴素卷积方法，以及``im2col``方法。
-
-#### 通过``winograd``方法
-
-``Winograd``则是另一种优化思路，通过优化计算的流程来加快卷积过程。通常对于较小的卷积核，用winograd方法计算会比较快。
-
-### 算子梯度实现细节问题
+这一节探讨下各种算子的实现问题，也会简单分析下各种算子的梯度计算问题。梯度计算这一过程，事实上大部分都能在网上找到计算公式，但是自己实现过程中还是需要推导一下，这一过程中也能更好地理解其工程考虑。
 
 #### Sigmoid算子
 
@@ -1739,6 +1692,51 @@ z&=\dfrac{e^{\tilde{x}}}{\mathrm{ReduceSum}(e^{\tilde{x}},dim)}
 \end{align}
 $$
 
+### 卷积算子
+
+参考资料：
+
+- [FAST CONVOLUTIONAL NETS WITH fbfft : A GPU PERFORMANCE EVALUATION](https://research.fb.com/wp-content/uploads/2016/11/fast-convolutional-nets-with-fbfft-a-gpu-performance-evaluation.pdf?)
+- [Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/pdf/1509.09308.pdf)
+- [Leonardo的博客](https://leonardoaraujosantos.gitbooks.io/artificial-inteligence/content/making_faster.html)
+- [Sahnimanas的博客](https://sahnimanas.github.io/post/anatomy-of-a-high-performance-convolution/)
+- [Jonathan Ragan-Kelley的博士论文](http://people.csail.mit.edu/jrk/jrkthesis.pdf)
+- [贾扬清的备忘录](https://github.com/Yangqing/caffe/wiki/Convolution-in-Caffe:-a-memo)
+
+卷积作为现代神经网络中最重要的算子，其实现需要特定的优化。卷积过程本质上仍可看成是对图像每个局部区域内的信息进行矩阵乘法，因此实现卷积算子时力求将这一个过程进行加速和优化。这其中又涉及到算法具体实现时的各种问题，计算调度、缓存调度、并行计算等（事实上其他算子也有这些问题，只是在卷积算子中这些问题更加突出）。由于笔者能力有限，暂时未完成这一部分。
+
+目前各大框架对卷积的实现有四种方法：
+
+- 直接计算
+- 通过``im2col``方法，将卷积完全转化为两个矩阵的乘法
+- 通过``FFT``进行计算
+- 通过``winograd``方法
+
+#### 直接计算
+
+![](./assets/conv_naive.png)
+
+朴素计算方法比较直观，给定一个$cin$通道数的特征图/图像，一个卷积核对每个通道内的数据进行滑动窗口内元素乘法加和运算，如此生成一个$cin$通道的中间特征图，再将各通道数据进行求和获得最终的输出。这种运算可以用于$cout$个不同的卷积核同时进行运算，最终形成$cout$通道的输出特征图。
+很明显，朴素计算方法没有任何的优化，假定输入特征图大小为$S\times n\times n\times f$，卷积核大小$f'\times f\times k\times k$，步长$1$，没有$padding=1$，输出特征图大小为$S\times n\times n\times f'$，实际上乘法执行次数为$Sff'n^2k^2$，加法执行次数为$Sff'n^2k^2$。我们知道计算机里面乘法的运算时间比加法大很多。将“一次乘法+一次加法”称为一个“FLOP”，那么朴素计算所需的复杂度可表示为$O(Sff'n^2k^2)$ FLOPs。
+
+#### 通过``im2col``方法
+
+![](./assets/conv_im2col.png)
+
+观察卷积运算过程，其实就是每个位置上的特征数据与对应位置的核参数进行相乘后，再对局部区域进行求和的操作，再对各通道求和，本质就可看成是矩阵/向量之间的乘法。所以``im2col``的思路就是将特征图局部和卷积核进行展开，处理成矩阵或向量来完成运算。这样展开成大矩阵，通过矩阵乘法对卷积运算进行加速。我们知道矩阵乘法已经有了加速的方法，因此卷积的效率可以进一步提高。上图中展示了一个具体过程。
+
+#### 通过FFT进行计算
+
+卷积过程顾名思义，来自于信号处理邻域。那么在信号处理中常用的傅里叶变换自然也可用于与实现卷积的计算，而且比朴素方法更加高效：
+
+![1567601537995](assets/1567601537995.png)
+
+其中$\circ$是点对点乘积，$*$是共轭。相比于朴素算法的$O(Sff'n^2k^2)$复杂度，通过FFT计算卷积的复杂度只需要$O(Sff'n^2+(Sf+ff'+Sf')n^2\log n)$。基于FFT的卷积方法通常将空间维度$n$分解为若干个基础卷积算子的组合，比如$2\times2$，$3\times3$，$5\times5$，$7\times7$，计算这些组合的结果后再计算总的输出结果。如果$n$不能分解为这些质数卷积核的组合，那么就比$n$大且能分解为上述质数组合的最快的点数$n'$的卷积，然后再取对应的值。由于FFT的性质，在卷积核较小问题规模也较小时，基于FFT的卷积性能反而可能不如朴素方法；但随着问题规模的增大，或者卷积核较大时，基于FFT的卷积性能要远远好于朴素卷积方法，以及``im2col``方法。
+
+#### 通过``winograd``方法
+
+``Winograd``则是另一种优化思路，通过优化计算的流程来加快卷积过程。通常对于较小的卷积核，用winograd方法计算会比较快。
+
 ### 优化方法
 
 参考资料：
@@ -1792,11 +1790,11 @@ $$
 
 #### 二阶优化方法
 
-在介绍SGD的各种改进方法之前，有必要介绍下二阶的优化方法。我们称普通的梯度下降方法是一阶的，因为它们只用到了函数$\mathcal{L}$对参数$w$的一阶导数。事实上，优化方法可以使用更高阶的信息，比如二阶优化方法（Newton法、拟Newton法等）用到了Hessian矩阵来调整演化的反向：
+在介绍SGD的各种改进方法之前，有必要介绍下二阶的优化方法。我们称普通的梯度下降方法是一阶的，因为它们只用到了损失函数$\mathcal{L}$对参数$w$的一阶导数。事实上，优化方法可以使用更高阶的信息，比如二阶优化方法（Newton法、拟Newton法等）用到了Hessian矩阵来调整演化的方向：
 $$
 \Delta w=-\dfrac{1}{|\mathrm{diag}(H_t)|+\mu}\nabla_wL
 $$
-通常，高阶优化方法比一阶方法具有更快的收敛速度，当然也是又代价的：需要计算$\mathcal{L}$对参数$w$的二阶导数（Hessian矩阵），这是一个时间复杂度和空间复杂度都很高的过程。
+通常，高阶优化方法比一阶方法具有更快的收敛速度，当然也是有代价的：需要计算$\mathcal{L}$对参数$w$的二阶导数（Hessian矩阵），这是一个时间复杂度和空间复杂度都很高的过程。
 
 #### Momentum SGD （带动量的SGD）
 
