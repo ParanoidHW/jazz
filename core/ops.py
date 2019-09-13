@@ -146,7 +146,7 @@ def conv2d(x, k, bias=None, stride=1, padding=0, dilation=1):
     y = np.reshape(y, y_new_shape)
     if bias is not None:
         bias_ = Zhangliang(bias)
-        y = y + bias_.values
+        y = y + np.reshape(bias_.values, (1,cout,1,1))
 
     return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
@@ -181,10 +181,9 @@ def conv2d_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1):
         k.update_grad(k_grad)
 
     if bias is not None and isinstance(bias, Zhangliang) and bias.requires_grad:
-        inputs_shapes = tuple([bias.shape])
         output_shape = output.shape
-        axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
+        axes_to_reduce = [i for i in range(len(output_shape)) if i != 1]
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce, bias.shape)
         bias.update_grad(grads)
 
 
@@ -210,7 +209,7 @@ def conv2d_transpose(x, k, bias=None, stride=1, padding=0, dilation=1):
 
     if bias is not None:
         bias_ = Zhangliang(bias)
-        y = y + bias_.values
+        y = y + np.reshape(bias_.values, (1,cin,1,1))
 
     return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
@@ -246,7 +245,7 @@ def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation
         inputs_shapes = tuple([bias.shape])
         output_shape = output.shape
         axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], x_.shape)
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], bias.shape)
         bias.update_grad(grads)
 
 

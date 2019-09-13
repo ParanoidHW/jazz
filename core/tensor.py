@@ -91,16 +91,10 @@ class Zhangliang(BaseZhangliang):
         parents = graph.get_parents(node)
         # Recursive for the parent nodes
         for node_in in parents:
-            o = node_in.output
-            if isinstance(o, Zhangliang):
-                o.backward(retain_graph)
-
-        # If the recursive reaches a node whose inputs are the input to the graph,
-        # we may consider release the gradients.
-        # Comment the following lines for debug.
-        # if len(parents) == 0:
-        #     for tensor_in in node.input_list:
-        #         tensor_in.release()
+            output_tuple = node_in.output
+            for o in output_tuple:
+                if isinstance(o, Zhangliang):
+                    o.backward(retain_graph)
 
         if graph.is_leaf(self):
             graph.clear_graph()
@@ -213,7 +207,7 @@ def is_zhangliang_requires_grad(x):
 
 def aggregate_and_reshape_grad(grad_values, axes_to_reduce, target_shape):
     if len(axes_to_reduce) >= 0:
-        aggregated_grad = np.sum(grad_values, axis=axes_to_reduce)
+        aggregated_grad = np.sum(grad_values, axis=tuple(axes_to_reduce))
     else:
         aggregated_grad = grad_values
     return np.reshape(aggregated_grad, target_shape)

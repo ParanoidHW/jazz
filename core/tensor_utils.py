@@ -106,7 +106,7 @@ def get_op_settings(stride, padding, dilation):
         padding_ = (padding, padding, padding, padding)
     elif isinstance(padding, (tuple, list)):
         if len(padding) == 2:
-            padding_ = tuple(padding) + (0, 0)
+            padding_ = (padding[0], padding[0], padding[1], padding[1])
         elif len(padding) == 4:
             padding_ = tuple(padding)
         elif len(padding) == 1:
