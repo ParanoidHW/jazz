@@ -135,7 +135,7 @@ def conv2d(x, k, bias=None, stride=1, padding=0, dilation=1):
     assert cin == x_.shape[1], "Expected feature dimension {}, but got {}.". \
         format(cin, x_.shape[1])
 
-    # Cover each region into a column
+    # Convert each region into a column
     x_col, target_size = im2col(x_.values, (kh, kw), stride, padding, dilation)
     # Reshape the kernel into rows
     k_row = np.reshape(k_.values, (cout, cin*kh*kw))
@@ -249,13 +249,79 @@ def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation
         bias.update_grad(grads)
 
 
+def _pooling_prepare(x, kernel_size, stride, dilation):
+    stride, _, dilation = get_op_settings(stride, 0, dilation)
+
+    x_ = Zhangliang(x)
+    b, c, h, w = x_.shape
+
+    kh, kw = kernel_size
+
+    x_col, target_size = im2col(x_.values, (kh, kw), stride, 0, dilation)
+    x_col = np.reshape(x_col, (b, c, kh * kw) + target_size)
+
+    return x_col
+
+
 @ctx_register(op_name='max_pool2d')
-def max_pool2d(x, k, stride=1, padding=0, dilation=1):
-    stride, padding, dilation = get_op_settings(stride, padding, dilation)
-    pass
+def max_pool2d(x, kernel_size=2, stride=1, dilation=1, return_indices=False):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    x_col = _pooling_prepare(x, kernel_size, stride, dilation)
+
+    y = np.max(x_col, axis=2, keepdims=False)
+    if return_indices:
+        y_indices = np.argmax(x_col, axis=2)
+        return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled()), \
+            Zhangliang(y_indices, dtype=np.int32, requires_grad=False)
+    else:
+        return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
 @grad_register(op_name='max_pool2d')
-def max_pool2d_grad(outputs, x, k, stride=1, padding=0, dilation=1):
-    stride, padding, dilation = get_op_settings(stride, padding, dilation)
-    pass
+def max_pool2d_grad(output, indices, x, kernel_size=2, stride=1, dilation=1, return_indices=False):
+    stride, padding, dilation = get_op_settings(stride, 0, dilation)
+
+    x_ = Zhangliang(x)
+    b, c, h, w = x_.shape
+    kh, kw = kernel_size
+
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        output_grad = np.reshape(output.grad, (b, c, 1, h, w))  # [n,cout,1, hout*wout]
+        output_values = np.reshape(output.values, (b, c, 1, h, w))
+        x_col, target_size = im2col(x_.values, (kh, kw), stride, 0, dilation)
+        x_col = np.reshape(x_col, (b, c, kh * kw) + target_size)
+
+        # We do not use the returned indices during the forward, since the max value may
+        # may occur in several places in each conv region.
+        max_indices = output_values == x_col
+        norm_indices = max_indices / np.sum(max_indices, axis=2, keepdims=True)
+        x_grad = output_grad * norm_indices
+        x_grad = col2im_backward(x_grad, h, w, stride, padding, dilation)
+
+        x.update_grad(x_grad)
+
+
+@ctx_register(op_name='avg_pool2d')
+def avg_pool2d(x, kernel_size=2, stride=1, padding=0, dilation=1):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    x_col = _pooling_prepare(x, kernel_size, stride, dilation)
+
+    y = np.mean(x_col, axis=2, keepdims=False)
+    return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='avg_pool2d')
+def avg_pool2d_grad(outputs, x, kernel_size=2, stride=1, dilation=1):
+    stride, padding, dilation = get_op_settings(stride, 0, dilation)
+
+    x_ = Zhangliang(x)
+    b, c, h, w = x_.shape
+    kh, kw = kernel_size
+
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        output_grad = np.reshape(outputs.grad, (b, c, 1, h, w))  # [n,cout,1, hout*wout]
+        norm_indices = 1./ (kw * kh)
+        x_grad = output_grad * norm_indices
+        x_grad = col2im_backward(x_grad, h, w, stride, padding, dilation)
+        x.update_grad(x_grad)
+

@@ -55,7 +55,7 @@ def im2col(im, ksize, stride, padding, dilation):
             ind = y*wout+x
             values[:, :, :, ind] = np.reshape(data[:, :, yind[:, None], xind[None, :]], newshape=(n, cin, kh*kw))
     values = np.reshape(values, (n, cin*kh*kw, hout*wout))
-    return Zhangliang(values, dtype=im.dtype, requires_grad=False), (hout, wout)
+    return values, (hout, wout)
 
 
 def im2col_backward(im, num_filters, kernel, stride, padding, dilation):
