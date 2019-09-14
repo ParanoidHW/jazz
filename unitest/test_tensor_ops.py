@@ -309,7 +309,7 @@ def test_conv_forward():
         print('------------------------------------------------')
         print('Test settings: bias={}, stride={}, padding={}, dilation={}'.
               format(bias, stride, padding, dilation))
-        print('Forward ....', end='')
+        print('Forward  ....', end='')
         x = Zhangliang(in_x, requires_grad=True)
         k = Zhangliang(in_k, requires_grad=True)
         if bias:
@@ -321,9 +321,9 @@ def test_conv_forward():
         y = conv_fn(x, k, bias=b, stride=stride, padding=padding, dilation=dilation)
         forward_array_close = array_close(y, out, tol=1e-5, rtol=1e-5)
         if forward_array_close:
-            print('y success :)')
+            print(' `y` success :)')
         else:
-            print('y failed :(')
+            print(' `y` failed :(')
 
         print('Backward ....', end='')
         ysum = sum_fn(y)
