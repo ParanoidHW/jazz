@@ -8,3 +8,6 @@ import numpy as np
 class Sampler(object):
     def __init__(self):
         pass
+
+    def get_one_batch(self, batchsize):
+        pass
