@@ -994,12 +994,12 @@ def zl_add(a, b):
 ```python
 # create_tracer将定义一个计算图`graph_`，具体类型稍后介绍
 # trave_with_name则是真正的装饰器函数，将使用`op_name`来追踪被装饰函数
-# warp是对原函数的封装，传入为原函数引用
+# wrap是对原函数的封装，传入为原函数引用
 # eval_fn是真正执行原函数，并且在执行后将输入输出记录到计算图中
 
 def create_tracer(graph_):
     def trace_with_name(op_name):
-        def warp(fn):
+        def wrap(fn):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 
@@ -1008,7 +1008,7 @@ def create_tracer(graph_):
                 
                 return output
             return eval_fn
-        return warp
+        return wrap
     return trace_with_name
 
 graph = {}
@@ -1023,7 +1023,7 @@ trace = create_tracer(graph)
 def create_tracer(graph_: Graph):
     def trace_with_name(op_name):
         @forward_func(op_name=op_name)
-        def warp(fn):
+        def wrap(fn):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 
@@ -1032,7 +1032,7 @@ def create_tracer(graph_: Graph):
                 
                 return output
             return eval_fn
-        return warp
+        return wrap
     return trace_with_name
 
 
@@ -1040,7 +1040,7 @@ graph = Graph()
 trace = create_tracer(graph)
 ```
 
-注意到第3行，``forward_func``装饰器现在装饰了原函数的封装函数``warp``。这样在添加``trace``装饰器的时候，就会调用一次注册机，原函数即在装饰``trace``时完成了注册。
+注意到第3行，``forward_func``装饰器现在装饰了原函数的封装函数``wrap``。这样在添加``trace``装饰器的时候，就会调用一次注册机，原函数即在装饰``trace``时完成了注册。
 
 因此，剩下的目标就是如何定义计算图，以便在调用前馈函数时将各张量和算子记录下来。
 
@@ -1164,14 +1164,14 @@ class Graph:
 def create_tracer(graph_: Graph):
     def trace_with_name(op_name):
         @func_register(op_name=op_name)
-        def warp(fn):
+        def wrap(fn):
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
                 new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
                 graph_.append_node(new_node)
                 return output
             return eval_fn
-        return warp
+        return wrap
     return trace_with_name
 ```
 

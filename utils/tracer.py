@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 
 from collections import OrderedDict
+from functools import wraps
 
 from utils.register import func_register, grad_lib
 from core.base import BaseZhangliang
@@ -102,16 +103,17 @@ class Graph:
 
 def create_tracer(graph_: Graph):
     def trace_with_name(op_name):
-        def warp(fn):
+        def wrap(fn):
+            @wraps(fn)
             @func_register(op_name=op_name)
             def eval_fn(*args, **kwargs):
                 output = fn(*args, **kwargs)
-                new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
                 if graph_.is_grad_enabled():
+                    new_node = Node(input_args=args, input_kwargs=kwargs, output=output, op_type=op_name)
                     graph_.append_node(new_node)
                 return output
             return eval_fn
-        return warp
+        return wrap
     return trace_with_name
 
 
