@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from core.lr_schedule import FixedLRSchedule, AbstractLRSchedule
+from python.core.lr_schedule import FixedLRSchedule, AbstractLRSchedule
 
 
 class AbstractOptimizer(object):

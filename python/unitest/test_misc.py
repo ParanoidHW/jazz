@@ -6,7 +6,7 @@ import numpy as np
 
 
 def test_broadcast_rule():
-    from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
+    from python.utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
 
     def eltwise(ashape, bshape):
         a = np.ones(ashape)

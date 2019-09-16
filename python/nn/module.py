@@ -3,10 +3,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from collections import OrderedDict
-import numpy as np
-from core import Zhangliang
-from core import *
-from utils import grad_lib, graph
 
 
 class Module(object):

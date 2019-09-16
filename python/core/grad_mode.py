@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
-from utils.tracer import graph
+from python.utils.tracer import graph
 
 
 class no_grad(object):

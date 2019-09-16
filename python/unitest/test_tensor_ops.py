@@ -6,10 +6,9 @@ from itertools import product
 import pickle as pkl
 import numpy as np
 
-from core import Zhangliang
-from utils.register import func_lib, grad_lib
-from utils.misc import multiplicative_broadcast_analysis, additive_broadcast_analysis
-from utils.tracer import graph
+from python.core import Zhangliang
+from python.utils.register import func_lib, grad_lib
+from python.utils.misc import additive_broadcast_analysis
 
 
 TOL = 1e-6
@@ -30,7 +29,7 @@ def approx_numeric_grad(z_p, z_m):
 
 
 def test_check_forward_func_and_backkward_func():
-    from utils import func_lib, grad_lib
+    from python.utils import func_lib, grad_lib
     forward_keys = func_lib.keys()
     backward_keys = grad_lib.keys()
     diff = set(forward_keys) - set(backward_keys)
@@ -239,10 +238,13 @@ def test_maxmin_unary_func():
 
 
 def test_backward():
-    from core import sin, log
-    from core.grad_mode import no_grad, has_grad
+    from python.utils.register import func_lib
+    from python.core import no_grad, has_grad
     x1 = Zhangliang(2, requires_grad=True)
     x2 = Zhangliang(5, requires_grad=True)
+
+    log = func_lib['log']
+    sin = func_lib['sin']
 
     f = log(x1) + x1*x2 - sin(x2)
     f.backward()
@@ -302,6 +304,8 @@ def test_backward():
 
 
 def test_conv_forward():
+    from python.utils.register import func_lib
+
     sum_fn = func_lib['reduce_sum']
     conv_fn = func_lib['conv2d']
 

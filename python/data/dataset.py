@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 
 import numpy as np
-from data.sampler import Sampler
+from python.data import Sampler
 
 
 class DataLoader(object):

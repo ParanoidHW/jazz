@@ -5,8 +5,7 @@ from __future__ import absolute_import
 from collections import OrderedDict
 from functools import wraps
 
-from utils.register import func_register, grad_lib
-from core.base import BaseZhangliang
+from python.utils.register import func_register, grad_lib
 
 
 class Node(object):

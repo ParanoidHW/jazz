@@ -2,10 +2,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import numpy as np
-from core.grad_mode import no_grad
-from core.tensor import *
-from core.tensor_utils import im2col, get_conv_size, col2im_backward, get_convtr_size, get_op_settings
+from python.core.grad_mode import no_grad
+from python.core.tensor import *
+from python.core.tensor_utils import im2col, col2im_backward, get_convtr_size, get_op_settings
 
 
 @ctx_register(op_name='linear')
@@ -15,13 +14,13 @@ def linear(x, w):
     # Note: `x` `w` and `b` should be a Zhangliang.
     # TODO: add type check.
     with no_grad():
-        y = zl_matmul(x, w)
+        y = matmul(x, w)
     return y
 
 
 @grad_register(op_name='linear')
 def linear_grad(output, x, w):
-    zl_matmul_grad(output, x, w)
+    matmul_grad(output, x, w)
 
 
 @ctx_register(op_name='sigmoid')
@@ -112,8 +111,8 @@ def softmax_grad(output, x, dim=-1):
 def softplus(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     with no_grad():
-        y = zl_exp(x)
-        z = zl_log1p(y)
+        y = exp(x)
+        z = log1p(y)
     return Zhangliang(z.values, dtype=z.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 

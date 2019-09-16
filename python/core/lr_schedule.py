@@ -2,12 +2,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import collections
-import numbers
-import numpy as np
-
-from core.tensor import Zhangliang
-from utils.misc import strictly_increasing
+from python.utils.misc import strictly_increasing
 
 
 class AbstractLRSchedule:

@@ -6,11 +6,11 @@ import collections
 import numbers
 import numpy as np
 
-from core.base import BaseZhangliang
-from utils.tracer import ctx_register, graph
-from utils.register import grad_register, func_register, grad_lib
+from python.core.base import BaseZhangliang
+from python.utils.tracer import ctx_register, graph
+from python.utils.register import grad_register, func_register
 
-from utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis, recover_dim
+from python.utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
 
 
 class Zhangliang(BaseZhangliang):
@@ -103,97 +103,97 @@ class Zhangliang(BaseZhangliang):
         return Zhangliang(self._zhi, dtype=self.dtype, requires_grad=False)
 
     def __add__(self, other):
-        return zl_add(self, other)
+        return add(self, other)
 
     def __radd__(self, other):
-        return zl_add(other, self)
+        return add(other, self)
 
     def __sub__(self, other):
-        return zl_sub(self, other)
+        return sub(self, other)
 
     def __rsub__(self, other):
-        return zl_sub(other, self)
+        return sub(other, self)
 
     def __mul__(self, other):
-        return zl_mul(self, other)
+        return mul(self, other)
 
     def __rmul__(self, other):
-        return zl_mul(other, self)
+        return mul(other, self)
 
     def __truediv__(self, other):
-        return zl_truediv(self, other)
+        return truediv(self, other)
 
     def __rtruediv__(self, other):
-        return zl_truediv(other, self)
+        return truediv(other, self)
 
     def __abs__(self):
-        return zl_abs(self)
+        return abs(self)
 
     def __iadd__(self, other):
-        return zl_add(self, other)
+        return add(self, other)
 
     def __isub__(self, other):
-        return zl_sub(self, other)
+        return sub(self, other)
 
     def __imul__(self, other):
-        return zl_mul(self, other)
+        return mul(self, other)
 
     def __imatmul__(self, other):
-        return zl_matmul(self, other)
+        return matmul(self, other)
 
     def __itruediv__(self, other):
-        return zl_truediv(self, other)
+        return truediv(self, other)
 
     def __pow__(self, power, modulo=None):
-        return zl_pow(self, power)
+        return pow(self, power)
 
     def __rpow__(self, other):
-        return zl_pow(other, self)
+        return pow(other, self)
 
     def __ge__(self, other):
-        return zl_ge(self, other)
+        return ge(self, other)
 
     def __gt__(self, other):
-        return zl_gt(self, other)
+        return gt(self, other)
 
     def __le__(self, other):
-        return zl_le(self, other)
+        return le(self, other)
 
     def __lt__(self, other):
-        return zl_lt(self, other)
+        return lt(self, other)
 
     def __eq__(self, other):
-        return zl_eq(self, other)
+        return eq(self, other)
 
     def __ne__(self, other):
-        return zl_ne(self, other)
+        return ne(self, other)
 
     def __and__(self, other):
-        return zl_elt_and(self, other)
+        return elt_and(self, other)
 
     def __or__(self, other):
-        return zl_elt_or(self, other)
+        return elt_or(self, other)
 
     def __xor__(self, other):
-        return zl_elt_xor(self, other)
+        return elt_xor(self, other)
 
     def __neg__(self):
-        return zl_neg(self)
+        return neg(self)
 
     def sum(self, dim=None, keepdims=False):
-        return zl_reduce_sum(self, dim, keepdims)
+        return reduce_sum(self, dim, keepdims)
 
     def mean(self, dim=None, keepdims=False):
-        return zl_reduce_mean(self, dim, keepdims)
+        return reduce_mean(self, dim, keepdims)
 
     def reshape(self, new_shape):
-        return zl_reshape(self, new_shape)
+        return reshape(self, new_shape)
 
     def squeeze(self, dim=None):
-        return zl_squeeze(self, dim=dim)
+        return squeeze(self, dim=dim)
 
     def unsqueeze(self, dim):
-        return zl_unsqueeze(self, dim)
+        return unsqueeze(self, dim)
 
 
 def is_zhangliang_requires_grad(x):
@@ -221,7 +221,7 @@ def aggregate_and_reshape_grad(grad_values, axes_to_reduce, target_shape):
 
 
 @ctx_register(op_name='add')
-def zl_add(x, y):
+def add(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     # Incase of non-zhangliang, convert the inputs to Zhangliang
     a_ = Zhangliang.array(x)
@@ -231,7 +231,7 @@ def zl_add(x, y):
 
 
 @grad_register(op_name='add')
-def zl_add_grad(output, x, y):
+def add_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -246,7 +246,7 @@ def zl_add_grad(output, x, y):
 
 
 @ctx_register(op_name='sub')
-def zl_sub(x, y):
+def sub(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang.array(x)
     b_ = Zhangliang.array(y)
@@ -255,7 +255,7 @@ def zl_sub(x, y):
 
 
 @grad_register(op_name='sub')
-def zl_sub_grad(output, x, y):
+def sub_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -270,7 +270,7 @@ def zl_sub_grad(output, x, y):
 
 
 @ctx_register(op_name='mul')
-def zl_mul(x, y):
+def mul(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang.array(x)
     b_ = Zhangliang.array(y)
@@ -279,7 +279,7 @@ def zl_mul(x, y):
 
 
 @grad_register(op_name='mul')
-def zl_mul_grad(output, x, y):
+def mul_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -297,7 +297,7 @@ def zl_mul_grad(output, x, y):
 
 
 @ctx_register(op_name='div')
-def zl_truediv(x, y):
+def truediv(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang.array(x)
     b_ = Zhangliang.array(y)
@@ -306,7 +306,7 @@ def zl_truediv(x, y):
 
 
 @grad_register(op_name='div')
-def zl_truediv_grad(output, x, y):
+def truediv_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -324,7 +324,7 @@ def zl_truediv_grad(output, x, y):
 
 
 @ctx_register(op_name='matmul')
-def zl_matmul(x, y):
+def matmul(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang.array(x)
     b_ = Zhangliang.array(y)
@@ -333,7 +333,7 @@ def zl_matmul(x, y):
 
 
 @grad_register(op_name='matmul')
-def zl_matmul_grad(output, x, y):
+def matmul_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -364,7 +364,7 @@ def zl_matmul_grad(output, x, y):
 # TODO: `Zhangliang` does not seem to support for `complex` data type.
 # So the inputs of the `pow` should be positive.
 @ctx_register(op_name='pow')
-def zl_pow(x, y):
+def pow(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
@@ -373,7 +373,7 @@ def zl_pow(x, y):
 
 
 @grad_register(op_name='pow')
-def zl_pow_grad(output, x, y):
+def pow_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -399,7 +399,7 @@ def balanced_eq(xin, yin, zout):
 
 
 @ctx_register(op_name='maximum')
-def zl_maximum(x, y):
+def maximum(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
@@ -408,7 +408,7 @@ def zl_maximum(x, y):
 
 
 @grad_register(op_name='maximum')
-def zl_maximum_grad(output, x, y):
+def maximum_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -425,7 +425,7 @@ def zl_maximum_grad(output, x, y):
 
 
 @ctx_register(op_name='minimum')
-def zl_minimum(x, y):
+def minimum(x, y):
     local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(y)
     a_ = Zhangliang.array(x)
     b_ = Zhangliang.array(y)
@@ -434,7 +434,7 @@ def zl_minimum(x, y):
 
 
 @grad_register(op_name='minimum')
-def zl_minimum_grad(output, x, y):
+def minimum_grad(output, x, y):
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -452,7 +452,7 @@ def zl_minimum_grad(output, x, y):
 
 # Compare functions cannot backprop gradients. No need to trace them.
 @func_register(op_name='ge')
-def zl_ge(x, y):
+def ge(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.greater_equal(a_.values, b_.values)
@@ -460,13 +460,13 @@ def zl_ge(x, y):
 
 
 @grad_register(op_name='ge')
-def zl_ge_grad(output, x, y):
+def ge_grad(output, x, y):
     # The output of `ge` function does not require grad. So pass.
     pass
 
 
 @func_register(op_name='gt')
-def zl_gt(x, y):
+def gt(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.greater(a_.values, b_.values)
@@ -474,13 +474,13 @@ def zl_gt(x, y):
 
 
 @grad_register(op_name='gt')
-def zl_gt_grad(output, x, y):
+def gt_grad(output, x, y):
     # The output of `gt` function does not require grad. So pass.
     pass
 
 
 @func_register(op_name='le')
-def zl_le(x, y):
+def le(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.less_equal(a_.values, b_.values)
@@ -488,13 +488,13 @@ def zl_le(x, y):
 
 
 @grad_register(op_name='le')
-def zl_le_grad(output, x, y):
+def le_grad(output, x, y):
     # The output of `le` function does not require grad. So pass.
     pass
 
 
 @func_register(op_name='lt')
-def zl_lt(x, y):
+def lt(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.less(a_.values, b_.values)
@@ -502,13 +502,13 @@ def zl_lt(x, y):
 
 
 @grad_register(op_name='lt')
-def zl_lt_grad(output, x, y):
+def lt_grad(output, x, y):
     # The output of `lt` function does not require grad. So pass.
     pass
 
 
 @func_register(op_name='eq')
-def zl_eq(x, y):
+def eq(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.equal(a_.values, b_.values)
@@ -516,12 +516,12 @@ def zl_eq(x, y):
 
 
 @grad_register(op_name='eq')
-def zl_eq_grad(output, x, y):
+def eq_grad(output, x, y):
     pass
 
 
 @func_register(op_name='ne')
-def zl_ne(x, y):
+def ne(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.not_equal(a_.values, b_.values)
@@ -529,12 +529,12 @@ def zl_ne(x, y):
 
 
 @grad_register(op_name='ne')
-def zl_ne_grad(output, x, y):
+def ne_grad(output, x, y):
     pass
 
 
 @func_register(op_name='elt_and')
-def zl_elt_and(x, y):
+def elt_and(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.logical_and(a_.values, b_.values)
@@ -542,12 +542,12 @@ def zl_elt_and(x, y):
 
 
 @grad_register(op_name='elt_and')
-def zl_elt_and_grad(output, x, y):
+def elt_and_grad(output, x, y):
     pass
 
 
 @func_register(op_name='elt_or')
-def zl_elt_or(x, y):
+def elt_or(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.logical_or(a_.values, b_.values)
@@ -555,12 +555,12 @@ def zl_elt_or(x, y):
 
 
 @grad_register(op_name='elt_or')
-def zl_elt_or_grad(output, x, y):
+def elt_or_grad(output, x, y):
     pass
 
 
 @func_register(op_name='elt_xor')
-def zl_elt_xor(x, y):
+def elt_xor(x, y):
     a_ = Zhangliang(x)
     b_ = Zhangliang(y)
     values = np.logical_xor(a_.values, b_.values)
@@ -568,7 +568,7 @@ def zl_elt_xor(x, y):
 
 
 @grad_register(op_name='elt_xor')
-def zl_elt_xor_grad(output, x, y):
+def elt_xor_grad(output, x, y):
     pass
 
 
@@ -576,7 +576,7 @@ def zl_elt_xor_grad(output, x, y):
 
 
 @ctx_register(op_name='neg')
-def zl_neg(x):
+def neg(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = - a_.values
@@ -584,13 +584,13 @@ def zl_neg(x):
 
 
 @grad_register(op_name='neg')
-def zl_neg_grad(output, x):
+def neg_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         x.update_grad(-output.grad)
 
 
 @ctx_register(op_name='exp')
-def zl_exp(x):
+def exp(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.exp(a_.values)
@@ -598,13 +598,13 @@ def zl_exp(x):
 
 
 @grad_register(op_name='exp')
-def zl_neg_grad(output, x):
+def neg_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         x.update_grad(output.grad * x.values)
 
 
 @ctx_register(op_name='reduce_mean')
-def zl_reduce_mean(x, dim=None, keepdims=False):
+def reduce_mean(x, dim=None, keepdims=False):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.mean(a_.values, axis=dim, keepdims=keepdims)
@@ -612,7 +612,7 @@ def zl_reduce_mean(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='reduce_mean')
-def zl_reduce_mean_grad(output, x, dim=None, keepdims=False):
+def reduce_mean_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         inputs_shapes = x.shape
         reduced_shapes = list(inputs_shapes)
@@ -629,7 +629,7 @@ def zl_reduce_mean_grad(output, x, dim=None, keepdims=False):
 
 
 @ctx_register(op_name='reduce_sum')
-def zl_reduce_sum(x, dim=None, keepdims=False):
+def reduce_sum(x, dim=None, keepdims=False):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.sum(a_.values, axis=dim, keepdims=keepdims)
@@ -637,7 +637,7 @@ def zl_reduce_sum(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='reduce_sum')
-def zl_reduce_sum_grad(output, x, dim=None, keepdims=False):
+def reduce_sum_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         inputs_shapes = x.shape
         reduced_shapes = list(inputs_shapes)
@@ -652,7 +652,7 @@ def zl_reduce_sum_grad(output, x, dim=None, keepdims=False):
 
 
 @ctx_register(op_name='reshape')
-def zl_reshape(x, new_shape):
+def reshape(x, new_shape):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.reshape(a_.values, new_shape)
@@ -660,14 +660,14 @@ def zl_reshape(x, new_shape):
 
 
 @grad_register(op_name='reshape')
-def zl_reshape_grad(output, x, new_shape):
+def reshape_grad(output, x, new_shape):
     if isinstance(x, Zhangliang) and x.requires_grad:
         old_shape = x.shape
         x.update_grad(np.reshape(output.grad, old_shape))
 
 
 @ctx_register(op_name='abs')
-def zl_abs(x):
+def abs(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.abs(a_.values)
@@ -675,7 +675,7 @@ def zl_abs(x):
 
 
 @grad_register(op_name='abs')
-def zl_abs_grad(output, x):
+def abs_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.where(x.values > 0, 1., -1.)
         values = np.where(x.values, values, 0.)
@@ -683,7 +683,7 @@ def zl_abs_grad(output, x):
 
 
 @ctx_register(op_name='log')
-def zl_log(x):
+def log(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.log(a_.values)
@@ -691,14 +691,14 @@ def zl_log(x):
 
 
 @grad_register(op_name='log')
-def zl_log_grad(output, x):
+def log_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values
         x.update_grad(values)
 
 
 @ctx_register(op_name='log2')
-def zl_log2(x):
+def log2(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.log2(a_.values)
@@ -706,14 +706,14 @@ def zl_log2(x):
 
 
 @grad_register(op_name='log2')
-def zl_log2_grad(output, x):
+def log2_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(2)
         x.update_grad(values)
 
 
 @ctx_register(op_name='log10')
-def zl_log10(x):
+def log10(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.log10(a_.values)
@@ -721,14 +721,14 @@ def zl_log10(x):
 
 
 @grad_register(op_name='log10')
-def zl_log10_grad(output, x):
+def log10_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(10)
         x.update_grad(values)
 
 
 @ctx_register(op_name='log1p')
-def zl_log1p(x):
+def log1p(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.log1p(a_.values)
@@ -736,7 +736,7 @@ def zl_log1p(x):
 
 
 @grad_register(op_name='log1p')
-def zl_log1p_grad(output, x):
+def log1p_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1. + x.values)
         x.update_grad(values)
@@ -761,7 +761,7 @@ def grad_minmax(xin, zout, grad, dim=None, keepdims=False):
 
 
 @ctx_register(op_name='max')
-def zl_max(x, dim=None, keepdims=False):
+def max(x, dim=None, keepdims=False):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.max(a_.values, axis=dim, keepdims=keepdims)
@@ -769,7 +769,7 @@ def zl_max(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='max')
-def zl_max_grad(output, x, dim=None, keepdims=False):
+def max_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
@@ -777,7 +777,7 @@ def zl_max_grad(output, x, dim=None, keepdims=False):
 
 
 @ctx_register(op_name='min')
-def zl_min(x, dim=None, keepdims=False):
+def min(x, dim=None, keepdims=False):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.min(a_.values, axis=dim, keepdims=keepdims)
@@ -785,7 +785,7 @@ def zl_min(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='min')
-def zl_min_grad(output, x, dim=None, keepdims=False):
+def min_grad(output, x, dim=None, keepdims=False):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
@@ -793,31 +793,31 @@ def zl_min_grad(output, x, dim=None, keepdims=False):
 
 
 @ctx_register(op_name='argmax')
-def zl_argmax(x, dim=None):
+def argmax(x, dim=None):
     a_ = Zhangliang(x)
     values = np.argmax(a_.values, axis=dim)
     return Zhangliang(values, dtype=values.dtype, requires_grad=False)
 
 
 @grad_register(op_name='argmax')
-def zl_argmax_grad(output, x, dim=None):
+def argmax_grad(output, x, dim=None):
     pass
 
 
 @ctx_register(op_name='argmin')
-def zl_argmin(x, dim=None):
+def argmin(x, dim=None):
     a_ = Zhangliang(x)
     values = np.argmin(a_.values, axis=dim)
     return Zhangliang(values, dtype=values.dtype, requires_grad=False)
 
 
 @grad_register(op_name='argmin')
-def zl_argmin_grad(output, x, dim=None):
+def argmin_grad(output, x, dim=None):
     pass
 
 
 @ctx_register(op_name='clamp')
-def zl_clamp(x, xmin=0., xmax=1.):
+def clamp(x, xmin=0., xmax=1.):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.clip(a_.values, a_max=xmax, a_min=xmin)
@@ -825,7 +825,7 @@ def zl_clamp(x, xmin=0., xmax=1.):
 
 
 @grad_register(op_name='clamp')
-def zl_clamp_grad(output, x, xmin=0., xmax=1.):
+def clamp_grad(output, x, xmin=0., xmax=1.):
     if isinstance(x, Zhangliang) and x.requires_grad:
         valid_region = np.logical_and(x.values >= xmin, x.values <= xmax)
         values = output.grad * valid_region
@@ -833,19 +833,19 @@ def zl_clamp_grad(output, x, xmin=0., xmax=1.):
 
 
 @func_register(op_name='elt_not')
-def zl_elt_not(x):
+def elt_not(x):
     a_ = Zhangliang(x)
     values = np.logical_not(a_.values)
     return Zhangliang(values, dtype=values.dtype, requires_grad=False)
 
 
 @grad_register(op_name='elt_not')
-def zl_elt_not_grad(output, x):
+def elt_not_grad(output, x):
     pass
 
 
 @ctx_register(op_name='sin')
-def zl_sin(x):
+def sin(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.sin(a_.values)
@@ -853,14 +853,14 @@ def zl_sin(x):
 
 
 @grad_register(op_name='sin')
-def zl_sin_grad(output, x):
+def sin_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cos(x.values)
         x.update_grad(values)
 
 
 @ctx_register(op_name='cos')
-def zl_cos(x):
+def cos(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.cos(a_.values)
@@ -868,14 +868,14 @@ def zl_cos(x):
 
 
 @grad_register(op_name='cos')
-def zl_cos_grad(output, x):
+def cos_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = - output.grad * np.sin(x.values)
         x.update_grad(values)
 
 
 @ctx_register(op_name='tan')
-def zl_tan(x):
+def tan(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.tan(a_.values)
@@ -883,7 +883,7 @@ def zl_tan(x):
 
 
 @grad_register(op_name='tan')
-def zl_tan_grad(output, x):
+def tan_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cos(x.values) ** 2)
         x.update_grad(values)
@@ -891,7 +891,7 @@ def zl_tan_grad(output, x):
 
 # numpy package has no `cot` function. So we skip `cot`, as well as `arccot`.
 @ctx_register(op_name='arcsin')
-def zl_arcsin(x):
+def arcsin(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arcsin(a_.values)
@@ -899,7 +899,7 @@ def zl_arcsin(x):
 
 
 @grad_register(op_name='arcsin')
-def zl_arcsin_grad(output, x):
+def arcsin_grad(output, x):
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -908,7 +908,7 @@ def zl_arcsin_grad(output, x):
 
 
 @ctx_register(op_name='arccos')
-def zl_arccos(x):
+def arccos(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arccos(a_.values)
@@ -916,7 +916,7 @@ def zl_arccos(x):
 
 
 @grad_register(op_name='arccos')
-def zl_arccos_grad(output, x):
+def arccos_grad(output, x):
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -925,7 +925,7 @@ def zl_arccos_grad(output, x):
 
 
 @ctx_register(op_name='arctan')
-def zl_arctan(x):
+def arctan(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arctan(a_.values)
@@ -933,14 +933,14 @@ def zl_arctan(x):
 
 
 @grad_register(op_name='arctan')
-def zl_arctan_grad(output, x):
+def arctan_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1 + x.values ** 2)
         x.update_grad(values)
 
 
 @ctx_register(op_name='sinh')
-def zl_sinh(x):
+def sinh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.sinh(a_.values)
@@ -948,14 +948,14 @@ def zl_sinh(x):
 
 
 @grad_register(op_name='sinh')
-def zl_sinh_grad(output, x):
+def sinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cosh(x.values)
         x.update_grad(values)
 
 
 @ctx_register(op_name='cosh')
-def zl_cosh(x):
+def cosh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.cosh(a_.values)
@@ -963,14 +963,14 @@ def zl_cosh(x):
 
 
 @grad_register(op_name='cosh')
-def zl_cosh_grad(output, x):
+def cosh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.sinh(x.values)
         x.update_grad(values)
 
 
 @ctx_register(op_name='tanh')
-def zl_tanh(x):
+def tanh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.tanh(a_.values)
@@ -978,14 +978,14 @@ def zl_tanh(x):
 
 
 @grad_register(op_name='tanh')
-def zl_tanh_grad(output, x):
+def tanh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cosh(x.values) ** 2)
         x.update_grad(values)
 
 
 @ctx_register(op_name='arcsinh')
-def zl_arcsinh(x):
+def arcsinh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arcsinh(a_.values)
@@ -993,14 +993,14 @@ def zl_arcsinh(x):
 
 
 @grad_register(op_name='arcsinh')
-def zl_arcsinh_grad(output, x):
+def arcsinh_grad(output, x):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / np.sqrt(x.values ** 2 + 1)
         x.update_grad(values)
 
 
 @ctx_register(op_name='arccosh')
-def zl_arccosh(x):
+def arccosh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arccosh(a_.values)
@@ -1008,7 +1008,7 @@ def zl_arccosh(x):
 
 
 @grad_register(op_name='arccosh')
-def zl_arccosh_grad(output, x):
+def arccosh_grad(output, x):
     # TODO: the error becomes significant when the `x.values` are close to 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -1017,7 +1017,7 @@ def zl_arccosh_grad(output, x):
 
 
 @ctx_register(op_name='arctanh')
-def zl_arctanh(x):
+def arctanh(x):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.arctanh(a_.values)
@@ -1025,7 +1025,7 @@ def zl_arctanh(x):
 
 
 @grad_register(op_name='arctanh')
-def zl_arctanh_grad(output, x):
+def arctanh_grad(output, x):
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -1034,7 +1034,7 @@ def zl_arctanh_grad(output, x):
 
 
 @ctx_register(op_name='squeeze')
-def zl_squeeze(x, dim=None):
+def squeeze(x, dim=None):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     values = np.squeeze(a_.values, dim=dim)
@@ -1042,14 +1042,14 @@ def zl_squeeze(x, dim=None):
 
 
 @grad_register(op_name='squeeze')
-def zl_squeeze_grad(output, x, dim=None):
+def squeeze_grad(output, x, dim=None):
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
         x.update_grad(values)
 
 
 @ctx_register(op_name='unsqueeze')
-def zl_unsqueeze(x, dim):
+def unsqueeze(x, dim):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
     old_shape = x.shape
@@ -1060,7 +1060,7 @@ def zl_unsqueeze(x, dim):
 
 
 @grad_register(op_name='unsqueeze')
-def zl_unsqueeze_grad(output, x, dim):
+def unsqueeze_grad(output, x, dim):
     if isinstance(input, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
         x.update_grad(values)
@@ -1070,7 +1070,7 @@ def zl_unsqueeze_grad(output, x, dim):
 
 
 @ctx_register(op_name='concat')
-def zl_concat(inputs, dim=-1):
+def concat(inputs, dim=-1):
     local_requires_grad = False
     encap_inputs = []
     for a_input in inputs:
@@ -1082,7 +1082,7 @@ def zl_concat(inputs, dim=-1):
 
 
 @grad_register(op_name='concat')
-def zl_concat_grad(output, inputs, dim=-1):
+def concat_grad(output, inputs, dim=-1):
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1096,7 +1096,7 @@ def zl_concat_grad(output, inputs, dim=-1):
 
 
 @ctx_register(op_name='hstack')
-def zl_hstack(inputs):
+def hstack(inputs):
     local_requires_grad = False
     encap_inputs = []
     for a_input in inputs:
@@ -1108,7 +1108,7 @@ def zl_hstack(inputs):
 
 
 @grad_register(op_name='hstack')
-def zl_hstack_grad(output, inputs):
+def hstack_grad(output, inputs):
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1122,7 +1122,7 @@ def zl_hstack_grad(output, inputs):
 
 
 @ctx_register(op_name='vstack')
-def zl_vstack(inputs):
+def vstack(inputs):
     local_requires_grad = False
     encap_inputs = []
     for a_input in inputs:
@@ -1134,7 +1134,7 @@ def zl_vstack(inputs):
 
 
 @grad_register(op_name='vstack')
-def zl_vstack_grad(output, inputs):
+def vstack_grad(output, inputs):
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1148,14 +1148,14 @@ def zl_vstack_grad(output, inputs):
 
 
 @ctx_register(op_name='tile')
-def zl_tile(x, reps):
+def tile(x, reps):
     local_requires_grad = is_zhangliang_requires_grad(x)
     values = np.tile(x.values, reps)
     return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
 @grad_register(op_name='tile')
-def zl_tile_grad(output, x, reps):
+def tile_grad(output, x, reps):
     xdim = x.ndim
     reps = [reps] if np.isscalar(reps) else reps
     d = len(reps)
@@ -1168,7 +1168,7 @@ def zl_tile_grad(output, x, reps):
 
 
 if __name__ == '__main__':
-    from utils.tracer import graph
+    from python.utils.tracer import graph
     a = Zhangliang([2, 3])
     a_ = Zhangliang(a)
     b = Zhangliang([-1, 0])

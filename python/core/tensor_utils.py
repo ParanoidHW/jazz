@@ -3,9 +3,7 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 
 import numbers
-import collections
 import numpy as np
-from core.tensor import Zhangliang
 
 
 def get_conv_size(im_size, k, s, p, d):
