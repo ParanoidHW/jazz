@@ -9,48 +9,39 @@ from python.data.sampler import Sampler
 from python.core import Zhangliang
 
 
-class DataLoader(object):
-    def __init__(self, batchsize, shuffle=True, drop_last=True, numworkers=1, sampler=Sampler()):
-        self.batchsize = batchsize
-        self.shuffle = shuffle
-        self.drop_last = drop_last
-        self.sampler = sampler
-        self.numwokers = numworkers
+class Dataset(object):
+    def __init__(self, *args, **kwargs):
+        pass
 
-    def get_one_batch(self):
-        indices = self.sampler.get_one_batch(batchsize=self.batchsize)
-        for i, ind in enumerate(indices):
-            if ind > self.numcases:
-                raise IndexError('Index {} out of range {}.'.format(ind, self.numcases))
-            data = self.get_one_sample(ind)
-            if i == 0:
-                batch_data = list(data)
-            else:
-                for data_id, d in enumerate(data):
-                    batch_data[data_id].append(d)
-
-        batch_data_zl = []
-        for d in batch_data:
-            # each value in d should be [b, c, h, w] shape.
-            d = np.concatenate(d, axis=0)
-            batch_data_zl.append(Zhangliang(d, dtype=d.dtype, requires_grad=False))
-        return tuple(batch_data_zl)
-
-    def get_one_sample(self, index):
+    def __getitem__(self, item):
         raise NotImplementedError
 
-    @property
-    def numcases(self):
+    def __len__(self):
         raise NotImplementedError
 
-    @property
-    def numbatches(self):
-        numcases = self.numcases
-        numbatches = numcases // self.batchsize
-        if numbatches * self.batchsize < numcases and not self.drop_last:
-            numbatches += 1
-        return numbatches
 
-    def __iter__(self):
-        while True:
-            yield self.get_one_batch()
+class ConcatDataset(Dataset):
+    def __init__(self, dataset_list):
+        super(ConcatDataset, self).__init__()
+        for d in dataset_list:
+            if not isinstance(d, Dataset):
+                raise TypeError('elements in dataset_list should be a `Dataset`, but got {}'.format(type(d)))
+        self._num_ds = len(dataset_list)
+        self._dataset_list = tuple(dataset_list)
+        self._num_cases = tuple(len(d) for d in self._dataset_list)
+
+    def _get_bucket(self, item):
+        for i, num in enumerate(self._num_cases):
+            if item < num:
+                return i, item
+            item -= num
+        else:
+            raise IndexError('item index out of range')
+
+    def __len__(self):
+        return sum(self._num_cases)
+
+    def __getitem__(self, item):
+        # TODO: how to deal with slicing? PyTorch does not support slicing in Dataset.
+        dataset_id, dataset_item = self._get_bucket(item)
+        return self._dataset_list[dataset_id].__getitem__(dataset_item)
