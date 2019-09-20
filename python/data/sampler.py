@@ -35,6 +35,7 @@ class SequentialSampler(Sampler):
         self.cur_pos = 0
 
     def get_one_batch(self):
+        self._lap_finished = False
         if self.cur_pos + self.batchsize >= self.numcase:
             if self.drop_last:
                 fetch = self.indices[0:self.batchsize]
@@ -42,6 +43,7 @@ class SequentialSampler(Sampler):
             else:
                 fetch = self.indices[self.cur_pos:self.numcase]
                 self.cur_pos = 0
+            self._lap_finished = True
         else:
             fetch = self.indices[self.cur_pos:self.cur_pos + self.batchsize]
             self.cur_pos += self.batchsize

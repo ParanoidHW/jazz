@@ -38,6 +38,7 @@ class DataLoader(object):
         return len(self.sampler)
 
     def __next__(self):
+        # TODO: fix the one-shot iteration problem
         if self.sampler.one_lap:  # signal to stop the epoch. Sampler.fetch() is an infinite iterable process.
             raise StopIteration
         indices = self.sampler.get_one_batch()

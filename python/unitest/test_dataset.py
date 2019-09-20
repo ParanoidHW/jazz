@@ -24,13 +24,14 @@ def test_dataloader():
 
     fake_data = FakeData()
     data_loader = DataLoader(fake_data, batchsize=8, shuffle=True, numworkers=0)
-    for i, data in enumerate(data_loader):
-        x, y, z = data
-        if i == 0:
-            print(x.shape)
-            print(y.shape)
-            print(z.shape)
-    print(i)
+    for epoch in range(2):
+        for i, data in enumerate(data_loader):
+            x, y, z = data
+            if i == 0:
+                print(x.shape)
+                print(y.shape)
+                print(z.shape)
+        print(i)
 
 
 
