@@ -1,8 +1,10 @@
+
+
 # 思路
 
 [TOC]
 
-## 内容
+## 框架内容
 
 参考资料：
 
@@ -1949,6 +1951,27 @@ u_t&=\lim_{p\rightarrow\infin}(v_t)^{1/p}=\max(\beta_2\cdot u_{t-1},|g_t|)\\
 w_{t+1}&=w_t-\alpha\dfrac{1}{1-\beta_1^t}\dfrac{m_t}{u_t+\epsilon}
 \end{align}
 $$
+
+## 数据集类和加载器
+
+``Dataset``类及其加载器``DataLoader``类也是框架的必需。这两个类配合上各种管道类型的数据增广算子，以及多线程/多进程加载，能够为深度模型及时提供训练测试所需数据。这一流程的逻辑大约可以描述为：
+
+```mermaid
+graph LR
+	id(Files)
+	id2(Dataset)
+	id3(DataLoader)
+	id5(Batched Data)
+	id-->id2
+	id2-- transform -->id3
+	id3-- iteration -->id5
+```
+
+其中``transform``执行的位置也可移到``DataLoader``后，比如``PyTorch``是将``transform``应用在了``Dataset``类加载数据的过程中，可能是因为``transform``用到了``Pillow.Image``只能处理单张图像；而``tensorflow``貌似将``transform``的``pipeline``应用到了``DataLoader``之后。
+
+
+
+
 
 ## 其他知识
 
