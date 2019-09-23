@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from python.core.lr_schedule import FixedLRSchedule, AbstractLRSchedule
+from pyjazz.core.lr_schedule import FixedLRSchedule, AbstractLRSchedule
 
 
 class AbstractOptimizer(object):
@@ -39,7 +39,6 @@ class SGD(AbstractOptimizer):
     """
         \Delta w_{t+1}=\rho\Delta w_{t}-\sum_{i=1}^B\nabla_w L(x_i, y_i)-\lambda w_t
         w_{t+1} =w_t + \eta\Delta w_{t+1}
-
     """
     def __init__(self, params, lr=1e-3, momentum=0.9, regularize=None, weight_decay=0):
         super(SGD, self).__init__(lr, params, regularize, weight_decay)
@@ -55,7 +54,7 @@ class SGD(AbstractOptimizer):
                 self.velocities[index] = - dw
             else:
                 self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
-            p.values += cur_lr * self.velocities[index]
+            p.add_(cur_lr * self.velocities[index])
 
 
 class NesterovSGD(AbstractOptimizer):
@@ -73,7 +72,7 @@ class NesterovSGD(AbstractOptimizer):
                 self.velocities[index] = - dw
             else:
                 self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
-            p.values += cur_lr * (self.velocities[index] + self.momentum * self.velocities[index])
+            p.add_(cur_lr * (self.velocities[index] + self.momentum * self.velocities[index]))
 
 
 class Rprop(AbstractOptimizer):
@@ -99,7 +98,7 @@ class Rprop(AbstractOptimizer):
 
             dw = np.array(p.grad)
             dw[neg] = 0
-            p.values += - self.eta[index] * (np.sign(dw) + self.weight_decay * p.values)
+            p.add_(- self.eta[index] * (np.sign(dw) + self.weight_decay * p.values))
             self.buf_grad[index] = dw
 
 
@@ -125,7 +124,7 @@ class RMSprop(AbstractOptimizer):
             rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
             vel = - dw / rsquare_sum - self.weight_decay * p.values
 
-            p.values += cur_lr * vel
+            p.add_(cur_lr * vel)
 
 
 class AdaGrad(AbstractOptimizer):
@@ -141,7 +140,7 @@ class AdaGrad(AbstractOptimizer):
             self.square_sum[index] += np.square(dw)
             rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
             grad = - dw / rsquare_sum - self.weight_decay * p.values
-            p.values += cur_lr * grad
+            p.add_(cur_lr * grad)
 
 
 class AdaDelta(AbstractOptimizer):
@@ -164,7 +163,7 @@ class AdaDelta(AbstractOptimizer):
             # RMS[v] is one lag behind RMS[g]
             rms_v = np.sqrt(self.square_vel_sum[index])
             self.velocities[index] = - rms_v / rms_g * dw - self.weight_decay * p.values
-            p.values += cur_lr * self.velocities[index]
+            p.add_(cur_lr * self.velocities[index])
             self.square_vel_sum[index] = self.alpha * self.square_vel_sum[index] + (1 - self.alpha) * np.square(v)
 
 
@@ -195,7 +194,7 @@ class Adam(AbstractOptimizer):
 
             # TODO: add bias correction
 
-            p.values += cur_lr * grad
+            p.add_(cur_lr * grad)
 
             self.moment1[index] = m
             self.moment2[index] = v
@@ -226,7 +225,7 @@ class AdaMax(AbstractOptimizer):
 
             # TODO: add bias correction
 
-            p.values += cur_lr * grad
+            p.add_(cur_lr * grad)
 
             self.moment1[index] = m
             self.moment2[index] = v

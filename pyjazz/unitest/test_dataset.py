@@ -3,8 +3,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy as np
-from python.data.dataset import Dataset, FakeDataset
-from python.data.dataloader import DataLoader
+from pyjazz.data.dataset import Dataset, FakeDataset
+from pyjazz.data.dataloader import DataLoader
 
 
 def test_dataloader():

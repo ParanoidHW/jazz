@@ -6,9 +6,9 @@ from itertools import product
 import pickle as pkl
 import numpy as np
 
-from python.core import Zhangliang
-from python.utils.register import func_lib, grad_lib
-from python.utils.misc import additive_broadcast_analysis
+from pyjazz.core import Zhangliang
+from pyjazz.utils.register import func_lib, grad_lib
+from pyjazz.utils.misc import additive_broadcast_analysis
 
 
 TOL = 1e-6
@@ -29,7 +29,7 @@ def approx_numeric_grad(z_p, z_m):
 
 
 def test_check_forward_func_and_backkward_func():
-    from python.utils import func_lib, grad_lib
+    from pyjazz.utils import func_lib, grad_lib
     forward_keys = func_lib.keys()
     backward_keys = grad_lib.keys()
     diff = set(forward_keys) - set(backward_keys)
@@ -238,8 +238,8 @@ def test_maxmin_unary_func():
 
 
 def test_backward():
-    from python.utils.register import func_lib
-    from python.core import no_grad, has_grad
+    from pyjazz.utils.register import func_lib
+    from pyjazz.core import no_grad, has_grad
     x1 = Zhangliang(2, requires_grad=True)
     x2 = Zhangliang(5, requires_grad=True)
 
@@ -304,7 +304,7 @@ def test_backward():
 
 
 def test_conv_forward():
-    from python.utils.register import func_lib
+    from pyjazz.utils.register import func_lib
 
     sum_fn = func_lib['reduce_sum']
     conv_fn = func_lib['conv2d']

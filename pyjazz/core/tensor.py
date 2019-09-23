@@ -6,11 +6,11 @@ import collections
 import numbers
 import numpy as np
 
-from python.core.base import BaseZhangliang
-from python.utils.tracer import ctx_register, graph
-from python.utils.register import grad_register, func_register
+from pyjazz.core.base import BaseZhangliang
+from pyjazz.utils.tracer import ctx_register, graph
+from pyjazz.utils.register import grad_register, func_register
 
-from python.utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
+from pyjazz.utils.misc import additive_broadcast_analysis, multiplicative_broadcast_analysis
 
 
 class Zhangliang(BaseZhangliang):
@@ -70,6 +70,18 @@ class Zhangliang(BaseZhangliang):
         data = np.arange(start, stop, step)
         return cls(data, dtype=data.dtype, requires_grad=False)
 
+    @classmethod
+    def rand(cls, size, dtype=np.float64, requires_grad=False):
+        return cls(np.random.rand(*size), dtype=dtype, requires_grad=requires_grad)
+
+    @classmethod
+    def randint(cls, low, dtype=np.float64, requires_grad=False, **kwargs):
+        return cls(np.random.randint(low, **kwargs), dtype=dtype, requires_grad=requires_grad)
+
+    @classmethod
+    def randn(cls, size, dtype=np.float64, requires_grad=False):
+        return cls(np.random.randn(*size), dtype=dtype, requires_grad=requires_grad)
+
     def backward(self, retain_graph=False):
         if not graph.is_initialized():
             graph.toposort()
@@ -85,6 +97,7 @@ class Zhangliang(BaseZhangliang):
         node.backprop()
 
         # Delete the gradient after backprop.
+        # This is omitted when the Zhangliang is a parameter.
         if not retain_graph:
             self.release()
 
@@ -194,6 +207,42 @@ class Zhangliang(BaseZhangliang):
 
     def unsqueeze(self, dim):
         return unsqueeze(self, dim)
+
+
+class Parameters(Zhangliang):
+    def backward(self, retain_graph=False):
+        if not graph.is_initialized():
+            graph.toposort()
+
+        if graph.is_leaf(self) and self.requires_grad:
+            self.update_grad(1.)
+        elif graph.is_leaf(self) and (not self.requires_grad):
+            raise AttributeError('Zhangliang does not requires grad.')
+        elif (not graph.is_leaf(self)) and (not self.requires_grad):
+            return
+
+        node = graph.get_node_by_output_tensor(self)
+        node.backprop()
+
+        parents = graph.get_parents(node)
+        # Recursive for the parent nodes
+        for node_in in parents:
+            output_tuple = node_in.output
+            for o in output_tuple:
+                if isinstance(o, Zhangliang):
+                    o.backward(retain_graph)
+
+        if graph.is_leaf(self):
+            graph.clear_graph()
+
+    def add_(self, x):
+        # Only used to update the parameters
+        if isinstance(x, Zhangliang):
+            self._zhi += x.values
+        elif isinstance(x, np.ndarray) or np.isscalar(x):
+            self._zhi += x
+        else:
+            raise TypeError('Unrecognized data type.')
 
 
 def is_zhangliang_requires_grad(x):
@@ -390,6 +439,23 @@ def pow_grad(output, x, y):
         grads = output.grad * np.power(x_.values, y.values) * coef
         grads = aggregate_and_reshape_grad(grads, axes_to_reduce[1], y.shape)
         y.update_grad(grads)
+
+
+@ctx_register(op_name='square')
+def square(x):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    a_ = Zhangliang(x)
+    values = np.square(a_.values)
+    return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='square')
+def square_grad(output, x):
+    x_ = Zhangliang(x)
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        # The output definitely can broadcast with each input.
+        grads = 2 * output.grad * x_.values
+        x.update_grad(grads)
 
 
 # Borrowed from
@@ -1037,7 +1103,7 @@ def arctanh_grad(output, x):
 def squeeze(x, dim=None):
     local_requires_grad = is_zhangliang_requires_grad(x)
     a_ = Zhangliang(x)
-    values = np.squeeze(a_.values, dim=dim)
+    values = np.squeeze(a_.values, axis=dim)
     return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
@@ -1168,7 +1234,7 @@ def tile_grad(output, x, reps):
 
 
 if __name__ == '__main__':
-    from python.utils.tracer import graph
+    from pyjazz.utils.tracer import graph
     a = Zhangliang([2, 3])
     a_ = Zhangliang(a)
     b = Zhangliang([-1, 0])

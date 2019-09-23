@@ -2,9 +2,11 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-from python.core.grad_mode import no_grad
-from python.core.tensor import *
-from python.core.tensor_utils import im2col, col2im_backward, get_convtr_size, get_op_settings
+from pyjazz.core.grad_mode import no_grad
+from pyjazz.core.tensor import *
+from pyjazz.core.tensor_utils import im2col, col2im_backward, get_convtr_size, get_op_settings
+
+EPS = 1e-8
 
 
 @ctx_register(op_name='linear')
@@ -13,9 +15,10 @@ def linear(x, w):
     # Therefore inside the layers, we set no_grad() not to add the interleave nodes into the graph.
     # Note: `x` `w` and `b` should be a Zhangliang.
     # TODO: add type check.
+    local_requires_grad = is_zhangliang_requires_grad(x) or is_zhangliang_requires_grad(w)
     with no_grad():
         y = matmul(x, w)
-    return y
+    return Zhangliang(y.values, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
 @grad_register(op_name='linear')
@@ -324,3 +327,73 @@ def avg_pool2d_grad(outputs, x, kernel_size=2, stride=1, dilation=1):
         x_grad = col2im_backward(x_grad, h, w, stride, padding, dilation)
         x.update_grad(x_grad)
 
+
+@func_register(op_name='one_hot')
+def one_hot(x, depth, dim=-1):
+    x_ = Zhangliang(x)
+    indices = np.expand_dims(x_.values, axis=dim).astype(np.int32)
+    target_shape = list(indices.shape)
+    target_shape[dim] = depth
+
+    flatten_ind = indices.reshape(-1)
+    one_hot_target = np.eye(depth)[flatten_ind]
+    one_hot_target = np.reshape(one_hot_target, target_shape)
+
+    return Zhangliang(one_hot_target, dtype=np.int32, requires_grad=False)
+
+
+@grad_register(op_name='one_hot')
+def one_hot_grad(output, x, depth, dim=-1):
+    pass
+
+
+@ctx_register(op_name='cross_entropy')
+def cross_entropy(act, label, dim=-1):
+    local_requires_grad = is_zhangliang_requires_grad(act) or is_zhangliang_requires_grad(label)
+    x_ = Zhangliang(act)
+    y_ = Zhangliang(label)
+
+    logits = np.log(x_.values + EPS)
+    l = - np.sum(y_.values * logits, axis=dim, keepdims=False)
+    return Zhangliang(l, dtype=l.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='cross_entropy')
+def cross_entropy_grad(output, act, label, dim=-1):
+    x_ = Zhangliang(act)
+    y_ = Zhangliang(label)
+    if isinstance(act, Zhangliang) and act.requires_grad:
+        grad = np.expand_dims(output.grad, axis=dim)
+        grad = - grad * y_.values / (act.values + EPS)
+        act.update_grad(grad)
+
+    if isinstance(label, Zhangliang) and label.requires_grad:
+        grad = np.expand_dims(output.grad, axis=dim)
+        logits = np.log(x_.values + EPS)
+        grad = - logits * grad
+        label.update_grad(grad)
+
+
+@ctx_register(op_name='cross_entropy_with_logit')
+def cross_entropy_with_logits(logit, label, dim=-1):
+    local_requires_grad = is_zhangliang_requires_grad(logit) or is_zhangliang_requires_grad(label)
+    x_ = Zhangliang(logit)
+    y_ = Zhangliang(label)
+
+    l = - np.sum(y_.values * x_.values, axis=dim, keepdims=False)
+    return Zhangliang(l, dtype=l.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='cross_entropy_with_logit')
+def cross_entropy_with_logits_grad(output, logit, label, dim=-1):
+    x_ = Zhangliang(logit)
+    y_ = Zhangliang(label)
+    if isinstance(logit, Zhangliang) and logit.requires_grad:
+        grad = np.expand_dims(output.grad, axis=dim)
+        grad = - grad * y_.values
+        logit.update_grad(grad)
+
+    if isinstance(label, Zhangliang) and label.requires_grad:
+        grad = np.expand_dims(output.grad, axis=dim)
+        grad = - x_.values * grad
+        label.update_grad(grad)
