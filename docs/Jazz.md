@@ -1985,7 +1985,9 @@ for batch_id, d in enumerate(some_data_loader):
     # pass
 ```
 
-的方式加载数据（而且每次调用``DataLoader``的迭代都会新生成一个迭代器）；而``tensorflow``则使用了显式调用迭代器的方法：
+的方式加载数据（而且每次调用``DataLoader``的迭代都会新生成一个一次性迭代器）；
+
+而``tensorflow``则使用了显式调用迭代器的方法：
 
 ```python
 batch_size = 2
@@ -1995,6 +1997,8 @@ iter = data.make_one_shot_iterator()
 with tf.Session()  as sess:
     # pass
 ```
+
+``make_one_shot_iterator``方法定义了数据集的一次性迭代器，即遍历一遍数据集即销毁。当然``tensorflow``还有其他形式的迭代器，我们在此不表。
 
 ## 其他知识
 
