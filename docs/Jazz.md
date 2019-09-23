@@ -1969,9 +1969,32 @@ graph LR
 
 其中``transform``执行的位置也可移到``DataLoader``后，比如``PyTorch``是将``transform``应用在了``Dataset``类加载数据的过程中，可能是因为``transform``用到了``Pillow.Image``只能处理单张图像；而``tensorflow``貌似将``transform``的``pipeline``应用到了``DataLoader``之后。
 
+上述各部分的作用分别为：
 
+- ``Files``：为输入数据所在文件路径
+- ``Dataset``：根据文件路径加载单个文件样本
+- ``transform``：对输入数据进行增广、归一化等
+- ``DataLoader``：按照一定的组批方式，加载一批次若干数据，每批次数据的组合方式包括顺序组批、随机组批或者特定方式组批
+- ``iteration``：``DataLoader``将使用迭代器、生成器的模式减少对内存的需求；速度由多线程/多进程保证
+- ``Batchd Data``：成批的数据
 
+综上，为了实现数据集的加载，我们需要实现``Dataset``类、``transform``方法、``Sampler``采样类、``DataLoader``加载类以及对应的单进程/多进程加载函数；另外如何便捷地加载每批次数据也是需要考虑地问题，比如``PyTorch``自动将迭代器应用到了``DataLoader``类的``__iter__``方法中，因此我们能够使用
 
+```python
+for batch_id, d in enumerate(some_data_loader):
+    # pass
+```
+
+的方式加载数据（而且每次调用``DataLoader``的迭代都会新生成一个迭代器）；而``tensorflow``则使用了显式调用迭代器的方法：
+
+```python
+batch_size = 2
+data = tf.data.Dataset.from_tensor(data_numpy)
+data = data.batch(batch_size)
+iter = data.make_one_shot_iterator()
+with tf.Session()  as sess:
+    # pass
+```
 
 ## 其他知识
 

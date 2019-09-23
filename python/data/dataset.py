@@ -5,12 +5,9 @@ from __future__ import absolute_import
 import numpy as np
 import queue
 
-from python.data.sampler import Sampler
-from python.core import Zhangliang
-
 
 class Dataset(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         pass
 
     def __getitem__(self, item):
@@ -45,3 +42,18 @@ class ConcatDataset(Dataset):
         # TODO: how to deal with slicing? PyTorch does not support slicing in Dataset.
         dataset_id, dataset_item = self._get_bucket(item)
         return self._dataset_list[dataset_id].__getitem__(dataset_item)
+
+
+class FakeDataset(Dataset):
+    def __init__(self, dim=28, num_cases=100):
+        super(Dataset).__init__()
+        self.x = np.random.rand(num_cases, dim)
+        self.y = np.random.rand(num_cases, 3, dim, dim)
+        self.z = np.random.randint(10, size=(num_cases, ))
+        self.num_cases = num_cases
+
+    def __len__(self):
+        return self.num_cases
+
+    def __getitem__(self, item):
+        return self.x[item], self.y[item], self.z[item]

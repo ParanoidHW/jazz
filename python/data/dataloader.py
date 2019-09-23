@@ -10,50 +10,49 @@ from .sampler import SequentialSampler, RandomSampler
 
 
 class DataLoader(object):
-    def __init__(self, dataset, batchsize, shuffle=True, drop_last=True, numworkers=0, sampler=None):
+    def __init__(self, dataset, batch_size, shuffle=True, drop_last=True, num_workers=0, sampler=None):
         if not isinstance(dataset, Dataset):
             raise TypeError('DataLoader requires a `Dataset`, but got {}'.format(type(dataset)))
         self.dataset = dataset
-        self.batchsize = batchsize
+        self.batch_size = batch_size
         self.shuffle = shuffle
         self.drop_last = drop_last
 
         if sampler is None:
             if shuffle:
-                self.sampler = RandomSampler(len(dataset), batchsize, drop_last)
+                self.sampler = RandomSampler(len(dataset), batch_size, drop_last)
             else:
-                self.sampler = SequentialSampler(len(dataset), batchsize, drop_last)
+                self.sampler = SequentialSampler(len(dataset), batch_size, drop_last)
 
-        if numworkers < 0:
-            raise ValueError('numworkers should be greater than 0')
+        if num_workers < 0:
+            raise ValueError('num_workers should be greater than 0')
         else:
-            self.numworkers = numworkers
+            self.num_workers = num_workers
 
-        if self.numworkers == 0:
+        if self.num_workers == 0:
             self.workers = _SingleProcessFetcher(self.dataset)
         else:
-            self.workers = _MultiProcessFetcher(self.dataset, self.numworkers)
+            self.workers = _MultiProcessFetcher(self.dataset, self.num_workers)
 
     def __len__(self):
         return len(self.sampler)
 
-    def __next__(self):
-        # TODO: fix the one-shot iteration problem
-        if self.sampler.one_lap:  # signal to stop the epoch. Sampler.fetch() is an infinite iterable process.
-            raise StopIteration
-        indices = self.sampler.get_one_batch()
-        return self.workers.fetch(indices)
-
     def __iter__(self):
-        return self
+        return self.make_one_shot_iter()
 
     def _shutdown_workers(self):
-        if self.numworkers > 0:
+        if self.num_workers > 0:
             # Do multi-process shutdown
             pass
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._shutdown_workers()
+
+    def make_infinite_iter(self):
+        return _InfiniteIterator(self)
+
+    def make_one_shot_iter(self):
+        return _OneShotIterator(self)
 
 
 def _fetch(dataset, indices):
@@ -89,14 +88,14 @@ def _fetch_processing(dataset, indices_queue, data_queue):
 
 
 class _MultiProcessFetcher(object):
-    def __init__(self, data, numworkers):
+    def __init__(self, data, num_workers):
         self.dataset = data
         self.workers = []
-        self.numworkers = numworkers
+        self.num_workers = num_workers
         self.data_queue = multiprocessing.Queue()
 
         self.index_queue = []
-        for i in range(self.numworkers):
+        for i in range(self.num_workers):
             w_indices_queue = multiprocessing.Queue()
             w = multiprocessing.Process(target=_fetch_processing,
                                         args=(self.dataset, w_indices_queue, self.data_queue))
@@ -106,3 +105,45 @@ class _MultiProcessFetcher(object):
 
     def fetch(self, indices):
         pass
+
+
+class Iterator(object):
+    def __init__(self):
+        pass
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise NotImplementedError
+
+
+class _OneShotIterator(Iterator):
+    def __init__(self, data_loader):
+        super(_OneShotIterator, self).__init__()
+        self.data_loader = data_loader
+        self.sampler = data_loader.sampler
+        self.workers = data_loader.workers
+        self.num_batches = len(data_loader.sampler)
+        self.cur_batch = 0
+
+    def __next__(self):
+        if self.cur_batch < self.num_batches:
+            indices = self.sampler.get_one_batch()
+            self.cur_batch += 1
+            return self.workers.fetch(indices)
+        else:
+            raise StopIteration
+
+
+class _InfiniteIterator(Iterator):
+    def __init__(self, data_loader):
+        super(_InfiniteIterator, self).__init__()
+        self.data_loader = data_loader
+        self.sampler = data_loader.sampler
+        self.workers = data_loader.workers
+
+    def __next__(self):
+        indices = self.sampler.get_one_batch()
+        return self.workers.fetch(indices)
+
