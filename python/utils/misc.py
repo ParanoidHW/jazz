@@ -13,7 +13,7 @@ def expand_dim_as(old_shape, ref_shape):
     return new_shape
 
 
-def check_additive_dim_compatible(a_shape, ref_shape):
+def check_elementwise_dim_compatible(a_shape, ref_shape):
     ndim_a = len(a_shape)
     ndim_ref = len(ref_shape)
     assert ndim_a == ndim_ref, 'Dimension not equal: {} vs {}.'.format(ndim_a, ndim_ref)
@@ -30,7 +30,7 @@ def check_additive_dim_compatible(a_shape, ref_shape):
     return compatible, aggregated_axes
 
 
-def check_multiplicative_dim_compatible(a_shape, ref_shape):
+def check_matrixwise_dim_compatible(a_shape, ref_shape):
     ndim_a = len(a_shape)
     ndim_ref = len(ref_shape)
     assert ndim_a == ndim_ref, 'Dimension not equal: {} vs {}.'.format(ndim_a, ndim_ref)
@@ -62,7 +62,7 @@ def additive_broadcast_analysis(input_shapes, output_shape):
     for input_shape in input_shapes:
         # red_ax, invalid = data_shape_comp(input_shape, output_shape)
         new_shape = expand_dim_as(input_shape, output_shape)
-        valid, axes_aggregated = check_additive_dim_compatible(new_shape, output_shape)
+        valid, axes_aggregated = check_elementwise_dim_compatible(new_shape, output_shape)
         if valid:
             reduced_axes.append(tuple(axes_aggregated))
         else:
@@ -90,7 +90,7 @@ def multiplicative_broadcast_analysis(input_shapes, output_shape):
     for input_shape in input_shapes_:
         # red_ax, invalid = data_shape_comp(input_shape, output_shape)
         new_shape = expand_dim_as(input_shape, output_shape_)
-        valid, axes_aggregated = check_multiplicative_dim_compatible(new_shape, output_shape_)
+        valid, axes_aggregated = check_matrixwise_dim_compatible(new_shape, output_shape_)
         if valid:
             reduced_axes.append(tuple(axes_aggregated))
         else:
