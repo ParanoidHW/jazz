@@ -42,13 +42,6 @@ armax_fn = pyjazz.func_lib['argmax']
 ce_fn = pyjazz.func_lib['cross_entropy']
 
 
-def _show_range(x, name):
-    xmin = np.min(x.values)
-    xmax = np.max(x.values)
-    pattern = '{} range [{}, {}]'.format(name, xmin, xmax)
-    return pattern
-
-
 for epoch in range(100):
     for batch_id, data in enumerate(tr_loader):
         x, y = data
@@ -67,5 +60,3 @@ for epoch in range(100):
         if batch_id % 100 == 0:
             print('Epoch {:03d}, Batch {:04d}, Loss {}, Acc {}'.
                   format(epoch, batch_id, loss.squeeze(), acc.squeeze()))
-            print('\t\t{}, {}'.format(_show_range(w0, 'w0'), _show_range(w1, 'w1')))
-            print('\t\t{}, {}'.format(_show_range(b0, 'b0'), _show_range(b1, 'b1')))

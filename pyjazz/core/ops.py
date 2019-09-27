@@ -105,8 +105,8 @@ def softmax(x, dim=-1):
 @grad_register(op_name='softmax')
 def softmax_grad(output, x, dim=-1):
     if isinstance(x, Zhangliang) and x.requires_grad:
-        values = output.values * (1. - output.values)
-        values *= output.grad
+        dz_sum = np.sum(output.values * output.grad, axis=dim, keepdims=True)
+        values = output.values * (output.grad - dz_sum)
         x.update_grad(values)
 
 
@@ -339,7 +339,7 @@ def one_hot(x, depth, dim=-1):
     one_hot_target = np.eye(depth)[flatten_ind]
     one_hot_target = np.reshape(one_hot_target, target_shape)
 
-    return Zhangliang(one_hot_target, dtype=np.int32, requires_grad=False)
+    return Zhangliang(one_hot_target, dtype=np.float32, requires_grad=False)
 
 
 @grad_register(op_name='one_hot')
