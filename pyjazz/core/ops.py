@@ -68,7 +68,7 @@ def relu_grad(output, x):
         x.update_grad(output.grad * ones)
 
 
-@ctx_register(op_name='leaky_relu')
+@ctx_register(op_name='lrelu')
 def lrelu(x, alpha=.2):
     local_requires_grad = is_zhangliang_requires_grad(x)
     with no_grad():
@@ -78,7 +78,7 @@ def lrelu(x, alpha=.2):
     return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
 
 
-@grad_register(op_name='leaky_relu')
+@grad_register(op_name='lrelu')
 def lrelu_grad(output, x, alpha=.2):
     if isinstance(x, Zhangliang) and x.requires_grad:
         rate = x.values > 0

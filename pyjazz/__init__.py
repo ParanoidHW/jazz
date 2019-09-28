@@ -1,5 +1,4 @@
-from pyjazz import core
-from pyjazz.core import Zhangliang, Parameters
+from pyjazz.core import *
 from pyjazz import utils
 from pyjazz.utils.register import func_lib
 from pyjazz.utils.tracer import graph

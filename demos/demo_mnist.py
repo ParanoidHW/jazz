@@ -6,7 +6,7 @@ import numpy as np
 import os
 
 import pyjazz
-from pyjazz.core.optim import SGD
+from pyjazz.core import optim
 from pyjazz.data.dataset import MNISTDataset
 
 
@@ -17,16 +17,10 @@ b1 = pyjazz.Parameters(np.zeros((1, 10)), requires_grad=True)
 
 
 def network(input):
-    fc_fn = pyjazz.func_lib['linear']
-    sf_fn = pyjazz.func_lib['softmax']
-    re_fn = pyjazz.func_lib['relu']
-    rs_fn = pyjazz.func_lib['reshape']
-
-    input = rs_fn(input, new_shape=(-1, 784))
-    y1 = re_fn(fc_fn(input, w0) + b0)
-    # y2 = re_fn(fc_fn(y1, w1) + b1)
-    logit = fc_fn(y1, w1) + b1
-    pred = sf_fn(logit, dim=1)
+    input = pyjazz.reshape(input, new_shape=(-1, 784))
+    y1 = pyjazz.relu(pyjazz.linear(input, w0) + b0)
+    logit = pyjazz.linear(y1, w1) + b1
+    pred = pyjazz.softmax(logit, dim=1)
     return pred
 
 
@@ -35,26 +29,21 @@ tr_loader = pyjazz.DataLoader(tr_dataset, batch_size=32)
 te_dataset = MNISTDataset(root_dir=os.path.join('..', 'test_data'), split='test')
 te_loader = pyjazz.DataLoader(te_dataset, batch_size=32)
 
-optimizer = SGD((w0, w1, b0, b1), lr=1e-2)
-oh_fn = pyjazz.func_lib['one_hot']
-# sq_fn = pyjazz.func_lib['square']
-armax_fn = pyjazz.func_lib['argmax']
-ce_fn = pyjazz.func_lib['cross_entropy']
-
+optimizer = optim.SGD((w0, w1, b0, b1), lr=1e-2)
 
 for epoch in range(100):
     for batch_id, data in enumerate(tr_loader):
         x, y = data
-        one_hot = oh_fn(y, depth=10)
+        one_hot = pyjazz.one_hot(y, depth=10)
         pred = network(x)
-        loss = ce_fn(pred, one_hot, dim=1)
+        loss = pyjazz.cross_entropy(pred, one_hot, dim=1)
         loss = loss.mean()
         loss.backward(retain_graph=True)
         optimizer.update()
         optimizer.clear_grad()
 
         # Acc
-        pred_lb = armax_fn(pred, dim=1)
+        pred_lb = pyjazz.argmax(pred, dim=1)
         acc = (pred_lb == y).mean()
 
         if batch_id % 100 == 0:
