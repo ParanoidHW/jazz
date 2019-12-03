@@ -7,6 +7,7 @@ import os
 
 import pyjazz
 from pyjazz.core import optim
+from pyjazz.utils.manager import AverageMeter
 from pyjazz.data.dataset import MNISTDataset
 
 
@@ -30,6 +31,9 @@ te_dataset = MNISTDataset(root_dir=os.path.join('..', 'test_data'), split='test'
 te_loader = pyjazz.DataLoader(te_dataset, batch_size=32)
 
 optimizer = optim.SGD((w0, w1, b0, b1), lr=1e-2)
+acc_meter = AverageMeter()
+loss_meter = AverageMeter()
+te_acc_meter = AverageMeter()
 
 for epoch in range(100):
     for batch_id, data in enumerate(tr_loader):
@@ -37,15 +41,30 @@ for epoch in range(100):
         one_hot = pyjazz.one_hot(y, depth=10)
         pred = network(x)
         loss = pyjazz.cross_entropy(pred, one_hot, dim=1)
-        loss = loss.mean()
+        loss = loss.mean().squeeze()
         loss.backward(retain_graph=True)
         optimizer.update()
         optimizer.clear_grad()
+        loss_meter.update(loss)
 
         # Acc
         pred_lb = pyjazz.argmax(pred, dim=1)
-        acc = (pred_lb == y).mean()
+        acc = (pred_lb == y).mean().squeeze()
+        acc_meter.update(acc)
 
         if batch_id % 100 == 0:
-            print('Epoch {:03d}, Batch {:04d}, Loss {}, Acc {}'.
-                  format(epoch, batch_id, loss.squeeze(), acc.squeeze()))
+            print('Epoch {:03d}, Batch {:04d}, Loss {}, Train Acc {}'.
+                  format(epoch, batch_id, loss_meter.avg, acc_meter.avg))
+
+    for batch_id, data in enumerate(te_loader):
+        x, y = data
+        pred = network(x)
+
+        # Acc
+        pred_lb = pyjazz.argmax(pred, dim=1)
+        acc = (pred_lb == y).mean().squeeze()
+        te_acc_meter.update(acc)
+
+        if batch_id % 100 == 0:
+            print('Epoch {:03d}, Batch {:04d}, Test Acc {}'.
+                  format(epoch, batch_id, te_acc_meter.avg))
