@@ -217,7 +217,8 @@ def conv2d_transpose(x, k, bias=None, stride=1, padding=0, dilation=1):
 
 
 @grad_register(op_name='conv2d_transpose')
-def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1):
+def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1, output_padding=0):
+    # TODO: support output_padding
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -238,16 +239,15 @@ def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation
     if isinstance(k, Zhangliang) and k.requires_grad:
         # Reshape x into rows
         x_row = np.reshape(x_.values, (n, cout, hout * wout))  # [n, cout, hout*wout]
-        k_grad = np.matmul(x_row, grad_col.T)                  # [n, cout, cin*kh*kw]
+        k_grad = np.matmul(x_row, grad_col.transpose(0, 2, 1))                  # [n, cout, cin*kh*kw]
         k_grad = np.sum(k_grad, axis=0)
         k_grad = np.reshape(k_grad, k.shape)
         k.update_grad(k_grad)
 
     if bias is not None and isinstance(bias, Zhangliang) and bias.requires_grad:
-        inputs_shapes = tuple([bias.shape])
         output_shape = output.shape
-        axes_to_reduce = additive_broadcast_analysis(inputs_shapes, output_shape)
-        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce[0], bias.shape)
+        axes_to_reduce = [i for i in range(len(output_shape)) if i != 1]
+        grads = aggregate_and_reshape_grad(output.grad, axes_to_reduce, bias.shape)
         bias.update_grad(grads)
 
 

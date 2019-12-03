@@ -64,7 +64,6 @@ def col2im(im, cin, hin, win, ksize, stride, padding, dilation):
     pass
 
 
-
 def col2im_backward(im, hin, win, stride, padding, dilation):
     n, cin, kh, kw, hout, wout = im.shape
     sh, sw = stride

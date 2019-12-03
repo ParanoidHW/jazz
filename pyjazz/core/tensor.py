@@ -17,8 +17,8 @@ class Zhangliang(BaseZhangliang):
     def __init__(self, data, dtype=np.float64, requires_grad=False):
         if isinstance(data, Zhangliang):
             data = data.values
-        elif np.isscalar(data):
-            data = [data]
+        # elif np.isscalar(data):
+        #     data = [data]
         super(Zhangliang, self).__init__(data, dtype, requires_grad)
 
     @classmethod
@@ -92,12 +92,16 @@ class Zhangliang(BaseZhangliang):
             raise AttributeError('Zhangliang does not requires grad.')
         elif (not graph.is_leaf(self)) and (not self.requires_grad):
             return
+        else:
+            # Proceeds only when the tensor is not a leaf tensor and requires grad
+            pass
 
         node = graph.get_node_by_output_tensor(self)
         node.backprop()
 
         # Delete the gradient after backprop.
         # This is omitted when the Zhangliang is a parameter.
+        # See Parameter class
         if not retain_graph:
             self.release()
 
@@ -220,6 +224,9 @@ class Parameters(Zhangliang):
             raise AttributeError('Zhangliang does not requires grad.')
         elif (not graph.is_leaf(self)) and (not self.requires_grad):
             return
+        else:
+            # Proceeds only when the tensor is not a leaf tensor and requires grad
+            pass
 
         node = graph.get_node_by_output_tensor(self)
         node.backprop()

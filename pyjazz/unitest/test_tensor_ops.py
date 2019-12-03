@@ -53,7 +53,7 @@ def test_element_binary_func():
         x = Zhangliang(a, requires_grad=True)
         y = Zhangliang(b, requires_grad=True)
         z = fn(x, y, *args, **kwargs)
-        z.update_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z.values))
         gn(z, x, y, *args, **kwargs)
         axes_to_reduce = additive_broadcast_analysis([x.shape, y.shape], z.shape)
 
@@ -134,7 +134,7 @@ def test_arg_free_unary_func():
         gn = grad_lib[op_name]
         x = Zhangliang(a, requires_grad=True)
         z = fn(x, *args, **kwargs)
-        z.update_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z.values))
         gn(z, x, *args, **kwargs)
         axes_to_reduce = additive_broadcast_analysis([x.shape], z.shape)
 
@@ -199,7 +199,7 @@ def test_maxmin_unary_func():
         gn = grad_lib[op_name]
         x = Zhangliang(a, requires_grad=True)
         z = fn(x, dim=dim)
-        z.update_grad(np.ones_like(z))
+        z.update_grad(np.ones_like(z.values))
         gn(z, x, dim=dim)
 
         for i in range(max_trial):
@@ -251,7 +251,7 @@ def test_backward():
     print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
           "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
           "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
-          format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+          format(5.5, 1.716, x1.grad, x2.grad))
 
     x1 = Zhangliang(2, requires_grad=True)
     x2 = 5
@@ -261,7 +261,7 @@ def test_backward():
     print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
           "\tOracle grad: g_x1 = {:.5f}\n"
           "\tResult grad: g_x1 = {:.5f}".
-          format(5.5, x1.grad[0]))
+          format(5.5, x1.grad))
 
     x1 = 2
     x2 = Zhangliang(5, requires_grad=True)
@@ -270,7 +270,7 @@ def test_backward():
     print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
           "\tOracle grad: g_x2 = {:.5f}\n"
           "\tResult grad: g_x2 = {:.5f}".
-          format(1.716, x2.grad[0]))
+          format(1.716, x2.grad))
 
     # Test no_grad
     x1 = Zhangliang(2, requires_grad=True)
@@ -298,7 +298,7 @@ def test_backward():
         print("Test function f=log(x1)+x1*x2-sin(x2), with initial values x1=2, x2=5.\n"
               "\tOracle grad: g_x1 = {:.5f}, g_x2 = {:.5f}\n"
               "\tResult grad: g_x1 = {:.5f}, g_x2 = {:.5f}".
-              format(5.5, 1.716, x1.grad[0], x2.grad[0]))
+              format(5.5, 1.716, x1.grad, x2.grad))
     except:
         print('This line should not be print.')
 
@@ -353,3 +353,73 @@ def test_conv_forward():
 
     for one_run in runs:
         do_one_run(**one_run)
+
+
+def test_deconv_forward():
+    from pyjazz.utils.register import func_lib
+
+    sum_fn = func_lib['reduce_sum']
+    conv_fn = func_lib['conv2d_transpose']
+
+    def do_one_run(in_x, in_k, in_b, stride, padding, dilation, out, x_grad, k_grad, b_grad, bias, **kwargs):
+        print('------------------------------------------------')
+        print('Test settings: bias={}, stride={}, padding={}, dilation={}'.
+              format(bias, stride, padding, dilation))
+        print('Forward  ....', end='')
+        x = Zhangliang(in_x, requires_grad=True)
+        k = Zhangliang(in_k, requires_grad=True)
+        if bias:
+            b = Zhangliang(in_b, requires_grad=True)
+            print_end = ''
+        else:
+            b = None
+            print_end = '\n'
+
+        success_count = 0
+        fail_count = 0
+
+        y = conv_fn(x, k, bias=b, stride=stride, padding=padding, dilation=dilation)
+        forward_array_close = array_close(y, out, tol=1e-5, rtol=1e-6)
+        if forward_array_close:
+            success_count += 1
+            print(' `y` success :)')
+        else:
+            fail_count += 1
+            print(' `y` failed :(')
+
+        print('Backward ....', end='')
+        ysum = sum_fn(y)
+        ysum.backward()
+        if array_close(x.grad, x_grad, tol=1e-4, rtol=1e-5):
+            success_count += 1
+            print(' `x` success ', end='')
+        else:
+            fail_count += 1
+            print(' `x` failed,', end='')
+
+        if array_close(k.grad, k_grad, tol=1e-4, rtol=1e-5):
+            success_count += 1
+            print(' `k` success ', end=print_end)
+        else:
+            fail_count += 1
+            print(' `k` failed ', end=print_end)
+
+        if bias:
+            if array_close(b.grad, b_grad, tol=1e-4, rtol=1e-5):
+                success_count += 1
+                print(' `b` sucess ')
+            else:
+                fail_count += 1
+                print(' `b` failed ')
+        return success_count, fail_count
+
+    with open('test_deconv_no-outputpadding.pkl', 'rb') as f:
+        runs = pkl.load(f)
+
+    success_count = fail_count = 0
+    for one_run in runs:
+        s, f = do_one_run(**one_run)
+        success_count += s
+        fail_count += f
+
+    print('Total: success {}, failed {}'.format(success_count, fail_count))
