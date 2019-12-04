@@ -60,6 +60,9 @@ class BaseZhangliang(object):
     def format(self):
         return self._format
 
+    def normal_(self, mean, std):
+        self._zhi = np.random.randn(*self.shape) * std + mean
+
     def __iter__(self):
         return self._zhi.__iter__()
 
