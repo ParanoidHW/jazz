@@ -3,9 +3,10 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 
 import numpy as np
+from collections import OrderedDict
 
 from pyjazz.core.lr_schedule import FixedLRSchedule, AbstractLRSchedule
-
+from pyjazz.core.tensor import Parameters
 
 class AbstractOptimizer(object):
     def __init__(self, lr, params, regularize=None, weight_decay=0):
@@ -15,7 +16,15 @@ class AbstractOptimizer(object):
             self.lr_schedule = lr
         else:
             raise TypeError('`lr` should be a scalar or a `LRSchedule` class.')
-        self.params = list(params)
+
+        if isinstance(params, (dict, OrderedDict)):
+            self.params = [v for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.params = list(params)
+        elif isinstance(params, Parameters):
+            self.params = [params]
+        else:
+            raise TypeError
         self.iter = 0
         self.regularize = regularize
         self.weight_decay = weight_decay
@@ -43,7 +52,14 @@ class SGD(AbstractOptimizer):
     def __init__(self, params, lr=1e-3, momentum=0.9, regularize=None, weight_decay=0):
         super(SGD, self).__init__(lr, params, regularize, weight_decay)
         self.momentum = momentum
-        self.velocities = [np.zeros_like(p.values) for p in params]
+        if isinstance(params, (dict, OrderedDict)):
+            self.velocities = [np.zeros_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.velocities = [np.zeros_like(v.values) for v in params]
+        elif isinstance(params, Parameters):
+            self.velocities = [np.zeros_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         cur_lr = self.step()
@@ -61,8 +77,17 @@ class NesterovSGD(AbstractOptimizer):
     def __init__(self, params, lr=1e-3, momentum=.9, regularize=None, weight_decay=0):
         super(NesterovSGD, self).__init__(lr, params, regularize, weight_decay)
         self.momentum = momentum
-        self.velocities = [np.zeros_like(p.values) for p in params]
-        self.buf_weights = [np.array(p.values) for p in params]
+        if isinstance(params, (dict, OrderedDict)):
+            self.velocities = [np.zeros_like(v.values) for k, v in params.items()]
+            self.buf_weights = [np.array(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.velocities = [np.zeros_like(v.values) for v in params]
+            self.buf_weights = [np.array(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.velocities = [np.zeros_like(params.values)]
+            self.buf_weights = [np.array(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         cur_lr = self.step()
@@ -82,8 +107,17 @@ class Rprop(AbstractOptimizer):
         self.alpha, self.beta = scales
         self.eta_min, self.eta_max = lr_range
 
-        self.buf_grad = [np.zeros_like(p.values) for p in params]
-        self.eta = [np.ones_like(p.values) * lr for p in params]
+        if isinstance(params, (dict, OrderedDict)):
+            self.buf_grad = [np.zeros_like(v.values) for k, v in params.items()]
+            self.eta = [np.ones_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.buf_grad = [np.zeros_like(v.values) for v in params]
+            self.eta = [np.ones_like(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.buf_grad = [np.zeros_like(params.values)]
+            self.eta = [np.ones_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         # LR schedule won't take effect in Rprop, except for initialization
@@ -108,8 +142,17 @@ class RMSprop(AbstractOptimizer):
         self.momentum = momentum
         self.alpha = alpha
         self.eps = eps
-        self.velocities = [np.zeros_like(p.values) for p in params]
-        self.square_sum = [np.zeros_like(p.values) for p in params]
+        if isinstance(params, (dict, OrderedDict)):
+            self.velocities = [np.zeros_like(v.values) for k, v in params.items()]
+            self.square_sum = [np.zeros_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.velocities = [np.zeros_like(v.values) for v in params]
+            self.square_sum = [np.zeros_like(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.velocities = [np.zeros_like(params.values)]
+            self.square_sum = [np.zeros_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         # TODO: implement centered RMSprop
@@ -130,8 +173,18 @@ class RMSprop(AbstractOptimizer):
 class AdaGrad(AbstractOptimizer):
     def __init__(self, params, lr=1e-3, eps=1e-8, regularize=None, weight_decay=0):
         super(AdaGrad, self).__init__(lr, params, regularize, weight_decay)
-        self.square_sum = [np.zeros_like(p.values) for p in params]
         self.eps = eps
+        if isinstance(params, (dict, OrderedDict)):
+            self.velocities = [np.zeros_like(v.values) for k, v in params.items()]
+            self.square_sum = [np.zeros_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.velocities = [np.zeros_like(v.values) for v in params]
+            self.square_sum = [np.zeros_like(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.velocities = [np.zeros_like(params.values)]
+            self.square_sum = [np.zeros_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         cur_lr = self.step()
@@ -146,12 +199,24 @@ class AdaGrad(AbstractOptimizer):
 class AdaDelta(AbstractOptimizer):
     def __init__(self, params, lr=1e-3, alpha=0.9, eps=1e-8, regularize=None, weight_decay=0):
         super(AdaDelta, self).__init__(lr, params, regularize, weight_decay)
-        self.square_grad_sum = [np.zeros_like(p.values) for p in self.params]
-        self.square_vel_sum = [np.zeros_like(p.values) for p in self.params]
-        self.velocities = [np.zeros_like(p.values) for p in self.params]
 
         self.alpha = alpha
         self.eps = eps
+
+        if isinstance(params, (dict, OrderedDict)):
+            self.square_grad_sum = [np.zeros_like(v.values) for k, v in params.items()]
+            self.square_vel_sum = [np.zeros_like(v.values) for k, v in params.items()]
+            self.velocities = [np.zeros_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.square_grad_sum = [np.zeros_like(v.values) for v in params]
+            self.square_vel_sum = [np.zeros_like(p.values) for p in params]
+            self.velocities = [np.zeros_like(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.square_grad_sum = [np.zeros_like(params.values)]
+            self.square_vel_sum = [np.zeros_like(params.values)]
+            self.velocities = [np.zeros_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         cur_lr = self.step()
@@ -207,6 +272,17 @@ class AdaMax(AbstractOptimizer):
         self.eps = eps
         self.moment1 = [np.zeros_like(p.values) for p in params]
         self.moment2 = [np.zeros_like(p.values) for p in params]
+        if isinstance(params, (dict, OrderedDict)):
+            self.moment1 = [np.zeros_like(v.values) for k, v in params.items()]
+            self.moment2 = [np.zeros_like(v.values) for k, v in params.items()]
+        elif isinstance(params, (list, tuple)):
+            self.moment1 = [np.zeros_like(v.values) for v in params]
+            self.moment2 = [np.zeros_like(p.values) for p in params]
+        elif isinstance(params, Parameters):
+            self.moment1 = [np.zeros_like(params.values)]
+            self.moment2 = [np.zeros_like(params.values)]
+        else:
+            raise TypeError
 
     def update(self):
         cur_lr = self.step()
