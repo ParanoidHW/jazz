@@ -292,7 +292,9 @@ def add(x, y):
 
 
 @grad_register(op_name='add')
-def add_grad(output, x, y):
+def add_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -316,7 +318,9 @@ def sub(x, y):
 
 
 @grad_register(op_name='sub')
-def sub_grad(output, x, y):
+def sub_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -340,7 +344,9 @@ def mul(x, y):
 
 
 @grad_register(op_name='mul')
-def mul_grad(output, x, y):
+def mul_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -367,7 +373,9 @@ def truediv(x, y):
 
 
 @grad_register(op_name='div')
-def truediv_grad(output, x, y):
+def truediv_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -394,7 +402,9 @@ def matmul(x, y):
 
 
 @grad_register(op_name='matmul')
-def matmul_grad(output, x, y):
+def matmul_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -434,7 +444,9 @@ def pow(x, y):
 
 
 @grad_register(op_name='pow')
-def pow_grad(output, x, y):
+def pow_grad(output_tuple, x, y):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -462,7 +474,9 @@ def square(x):
 
 
 @grad_register(op_name='square')
-def square_grad(output, x):
+def square_grad(output_tuple, x):
+    # output_tuple is a tuple, unpack it first
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     if isinstance(x, Zhangliang) and x.requires_grad:
         # The output definitely can broadcast with each input.
@@ -486,7 +500,8 @@ def maximum(x, y):
 
 
 @grad_register(op_name='maximum')
-def maximum_grad(output, x, y):
+def maximum_grad(output_tuple, x, y):
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -512,7 +527,8 @@ def minimum(x, y):
 
 
 @grad_register(op_name='minimum')
-def minimum_grad(output, x, y):
+def minimum_grad(output_tuple, x, y):
+    output = output_tuple[0]
     x_ = Zhangliang(x)
     y_ = Zhangliang(y)
     inputs_shapes = tuple([x_.shape, y_.shape])
@@ -538,7 +554,7 @@ def ge(x, y):
 
 
 @grad_register(op_name='ge')
-def ge_grad(output, x, y):
+def ge_grad(output_tuple, x, y):
     # The output of `ge` function does not require grad. So pass.
     pass
 
@@ -552,7 +568,7 @@ def gt(x, y):
 
 
 @grad_register(op_name='gt')
-def gt_grad(output, x, y):
+def gt_grad(output_tuple, x, y):
     # The output of `gt` function does not require grad. So pass.
     pass
 
@@ -566,7 +582,7 @@ def le(x, y):
 
 
 @grad_register(op_name='le')
-def le_grad(output, x, y):
+def le_grad(output_tuple, x, y):
     # The output of `le` function does not require grad. So pass.
     pass
 
@@ -580,7 +596,7 @@ def lt(x, y):
 
 
 @grad_register(op_name='lt')
-def lt_grad(output, x, y):
+def lt_grad(output_tuple, x, y):
     # The output of `lt` function does not require grad. So pass.
     pass
 
@@ -594,7 +610,7 @@ def eq(x, y):
 
 
 @grad_register(op_name='eq')
-def eq_grad(output, x, y):
+def eq_grad(output_tuple, x, y):
     pass
 
 
@@ -607,7 +623,7 @@ def ne(x, y):
 
 
 @grad_register(op_name='ne')
-def ne_grad(output, x, y):
+def ne_grad(output_tuple, x, y):
     pass
 
 
@@ -620,7 +636,7 @@ def elt_and(x, y):
 
 
 @grad_register(op_name='elt_and')
-def elt_and_grad(output, x, y):
+def elt_and_grad(output_tuple, x, y):
     pass
 
 
@@ -633,7 +649,8 @@ def elt_or(x, y):
 
 
 @grad_register(op_name='elt_or')
-def elt_or_grad(output, x, y):
+def elt_or_grad(output_tuple, x, y):
+    output = output_tuple[0]
     pass
 
 
@@ -646,7 +663,7 @@ def elt_xor(x, y):
 
 
 @grad_register(op_name='elt_xor')
-def elt_xor_grad(output, x, y):
+def elt_xor_grad(output_tuple, x, y):
     pass
 
 
@@ -662,7 +679,8 @@ def neg(x):
 
 
 @grad_register(op_name='neg')
-def neg_grad(output, x):
+def neg_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         x.update_grad(-output.grad)
 
@@ -676,7 +694,8 @@ def exp(x):
 
 
 @grad_register(op_name='exp')
-def neg_grad(output, x):
+def neg_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         x.update_grad(output.grad * x.values)
 
@@ -690,7 +709,8 @@ def reduce_mean(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='reduce_mean')
-def reduce_mean_grad(output, x, dim=None, keepdims=False):
+def reduce_mean_grad(output_tuple, x, dim=None, keepdims=False):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         inputs_shapes = x.shape
         reduced_shapes = list(inputs_shapes)
@@ -715,7 +735,8 @@ def reduce_sum(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='reduce_sum')
-def reduce_sum_grad(output, x, dim=None, keepdims=False):
+def reduce_sum_grad(output_tuple, x, dim=None, keepdims=False):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         inputs_shapes = x.shape
         reduced_shapes = list(inputs_shapes)
@@ -738,7 +759,8 @@ def reshape(x, new_shape):
 
 
 @grad_register(op_name='reshape')
-def reshape_grad(output, x, new_shape):
+def reshape_grad(output_tuple, x, new_shape):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         old_shape = x.shape
         x.update_grad(np.reshape(output.grad, old_shape))
@@ -753,7 +775,8 @@ def abs(x):
 
 
 @grad_register(op_name='abs')
-def abs_grad(output, x):
+def abs_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.where(x.values > 0, 1., -1.)
         values = np.where(x.values, values, 0.)
@@ -769,7 +792,8 @@ def log(x):
 
 
 @grad_register(op_name='log')
-def log_grad(output, x):
+def log_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values
         x.update_grad(values)
@@ -784,7 +808,8 @@ def log2(x):
 
 
 @grad_register(op_name='log2')
-def log2_grad(output, x):
+def log2_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(2)
         x.update_grad(values)
@@ -799,7 +824,8 @@ def log10(x):
 
 
 @grad_register(op_name='log10')
-def log10_grad(output, x):
+def log10_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / x.values / np.log(10)
         x.update_grad(values)
@@ -814,7 +840,8 @@ def log1p(x):
 
 
 @grad_register(op_name='log1p')
-def log1p_grad(output, x):
+def log1p_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1. + x.values)
         x.update_grad(values)
@@ -847,7 +874,8 @@ def max(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='max')
-def max_grad(output, x, dim=None, keepdims=False):
+def max_grad(output_tuple, x, dim=None, keepdims=False):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
@@ -863,7 +891,8 @@ def min(x, dim=None, keepdims=False):
 
 
 @grad_register(op_name='min')
-def min_grad(output, x, dim=None, keepdims=False):
+def min_grad(output_tuple, x, dim=None, keepdims=False):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = grad_minmax(x.values, output.values, output.grad,
                              dim=dim, keepdims=keepdims)
@@ -878,7 +907,7 @@ def argmax(x, dim=None):
 
 
 @grad_register(op_name='argmax')
-def argmax_grad(output, x, dim=None):
+def argmax_grad(output_tuple, x, dim=None):
     pass
 
 
@@ -890,7 +919,7 @@ def argmin(x, dim=None):
 
 
 @grad_register(op_name='argmin')
-def argmin_grad(output, x, dim=None):
+def argmin_grad(output_tuple, x, dim=None):
     pass
 
 
@@ -903,7 +932,8 @@ def clamp(x, xmin=0., xmax=1.):
 
 
 @grad_register(op_name='clamp')
-def clamp_grad(output, x, xmin=0., xmax=1.):
+def clamp_grad(output_tuple, x, xmin=0., xmax=1.):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         valid_region = np.logical_and(x.values >= xmin, x.values <= xmax)
         values = output.grad * valid_region
@@ -918,7 +948,7 @@ def elt_not(x):
 
 
 @grad_register(op_name='elt_not')
-def elt_not_grad(output, x):
+def elt_not_grad(output_tuple, x):
     pass
 
 
@@ -931,7 +961,8 @@ def sin(x):
 
 
 @grad_register(op_name='sin')
-def sin_grad(output, x):
+def sin_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cos(x.values)
         x.update_grad(values)
@@ -946,7 +977,8 @@ def cos(x):
 
 
 @grad_register(op_name='cos')
-def cos_grad(output, x):
+def cos_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = - output.grad * np.sin(x.values)
         x.update_grad(values)
@@ -961,7 +993,8 @@ def tan(x):
 
 
 @grad_register(op_name='tan')
-def tan_grad(output, x):
+def tan_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cos(x.values) ** 2)
         x.update_grad(values)
@@ -977,7 +1010,8 @@ def arcsin(x):
 
 
 @grad_register(op_name='arcsin')
-def arcsin_grad(output, x):
+def arcsin_grad(output_tuple, x):
+    output = output_tuple[0]
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -994,7 +1028,8 @@ def arccos(x):
 
 
 @grad_register(op_name='arccos')
-def arccos_grad(output, x):
+def arccos_grad(output_tuple, x):
+    output = output_tuple[0]
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -1011,7 +1046,8 @@ def arctan(x):
 
 
 @grad_register(op_name='arctan')
-def arctan_grad(output, x):
+def arctan_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (1 + x.values ** 2)
         x.update_grad(values)
@@ -1026,7 +1062,8 @@ def sinh(x):
 
 
 @grad_register(op_name='sinh')
-def sinh_grad(output, x):
+def sinh_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.cosh(x.values)
         x.update_grad(values)
@@ -1041,7 +1078,8 @@ def cosh(x):
 
 
 @grad_register(op_name='cosh')
-def cosh_grad(output, x):
+def cosh_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad * np.sinh(x.values)
         x.update_grad(values)
@@ -1056,7 +1094,8 @@ def tanh(x):
 
 
 @grad_register(op_name='tanh')
-def tanh_grad(output, x):
+def tanh_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / (np.cosh(x.values) ** 2)
         x.update_grad(values)
@@ -1071,7 +1110,8 @@ def arcsinh(x):
 
 
 @grad_register(op_name='arcsinh')
-def arcsinh_grad(output, x):
+def arcsinh_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.grad / np.sqrt(x.values ** 2 + 1)
         x.update_grad(values)
@@ -1086,7 +1126,8 @@ def arccosh(x):
 
 
 @grad_register(op_name='arccosh')
-def arccosh_grad(output, x):
+def arccosh_grad(output_tuple, x):
+    output = output_tuple[0]
     # TODO: the error becomes significant when the `x.values` are close to 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -1103,7 +1144,8 @@ def arctanh(x):
 
 
 @grad_register(op_name='arctanh')
-def arctanh_grad(output, x):
+def arctanh_grad(output_tuple, x):
+    output = output_tuple[0]
     # TODO: the error becomes significant when the `x.values` are close to -1 and 1.
     # How to make it stable?
     if isinstance(x, Zhangliang) and x.requires_grad:
@@ -1120,7 +1162,8 @@ def squeeze(x, dim=None):
 
 
 @grad_register(op_name='squeeze')
-def squeeze_grad(output, x, dim=None):
+def squeeze_grad(output_tuple, x, dim=None):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
         x.update_grad(values)
@@ -1138,7 +1181,8 @@ def unsqueeze(x, dim):
 
 
 @grad_register(op_name='unsqueeze')
-def unsqueeze_grad(output, x, dim):
+def unsqueeze_grad(output_tuple, x, dim=None):
+    output = output_tuple[0]
     if isinstance(input, Zhangliang) and x.requires_grad:
         values = np.reshape(output.grad, x.shape)
         x.update_grad(values)
@@ -1160,7 +1204,8 @@ def concat(inputs, dim=-1):
 
 
 @grad_register(op_name='concat')
-def concat_grad(output, inputs, dim=-1):
+def concat_grad(output_tuple, inputs, dim=-1):
+    output = output_tuple[0]
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1186,7 +1231,8 @@ def hstack(inputs):
 
 
 @grad_register(op_name='hstack')
-def hstack_grad(output, inputs):
+def hstack_grad(output_tuple, inputs):
+    output = output_tuple[0]
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1212,7 +1258,8 @@ def vstack(inputs):
 
 
 @grad_register(op_name='vstack')
-def vstack_grad(output, inputs):
+def vstack_grad(output_tuple, inputs):
+    output = output_tuple[0]
     nsize = []
     for a_input in inputs:
         if not isinstance(a_input, Zhangliang):
@@ -1233,7 +1280,8 @@ def tile(x, reps):
 
 
 @grad_register(op_name='tile')
-def tile_grad(output, x, reps):
+def tile_grad(output_tuple, x, reps):
+    output = output_tuple[0]
     xdim = x.ndim
     reps = [reps] if np.isscalar(reps) else reps
     d = len(reps)

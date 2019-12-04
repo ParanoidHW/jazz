@@ -32,7 +32,8 @@ class Node(object):
 
     def backprop(self):
         grad_fn = grad_lib[self.op_type]
-        grad_fn(*self.output, *self.input_list, **self.input_kwargs)
+        # grad_fn(*self.output, *self.input_list, **self.input_kwargs)
+        grad_fn(self.output, *self.input_list, **self.input_kwargs)
 
 
 class Graph:

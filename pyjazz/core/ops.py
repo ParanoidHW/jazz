@@ -22,8 +22,8 @@ def linear(x, w):
 
 
 @grad_register(op_name='linear')
-def linear_grad(output, x, w):
-    matmul_grad(output, x, w)
+def linear_grad(output_tuple, x, w):
+    matmul_grad(output_tuple, x, w)
 
 
 @ctx_register(op_name='sigmoid')
@@ -45,7 +45,8 @@ def sigmoid(x):
 
 
 @grad_register(op_name='sigmoid')
-def sigmoid_grad(output, x):
+def sigmoid_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = output.values * (1. - output.values)
         values *= output.grad
@@ -62,7 +63,8 @@ def relu(x):
 
 
 @grad_register(op_name='relu')
-def relu_grad(output, x):
+def relu_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         ones = x.values > 0
         x.update_grad(output.grad * ones)
@@ -79,7 +81,8 @@ def lrelu(x, alpha=.2):
 
 
 @grad_register(op_name='lrelu')
-def lrelu_grad(output, x, alpha=.2):
+def lrelu_grad(output_tuple, x, alpha=.2):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         rate = x.values > 0
         rate[rate == 0] = alpha
@@ -103,7 +106,8 @@ def softmax(x, dim=-1):
 
 
 @grad_register(op_name='softmax')
-def softmax_grad(output, x, dim=-1):
+def softmax_grad(output_tuple, x, dim=-1):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         dz_sum = np.sum(output.values * output.grad, axis=dim, keepdims=True)
         values = output.values * (output.grad - dz_sum)
@@ -120,7 +124,8 @@ def softplus(x):
 
 
 @grad_register(op_name='softplus')
-def softplus_grad(output, x):
+def softplus_grad(output_tuple, x):
+    output = output_tuple[0]
     if isinstance(x, Zhangliang) and x.requires_grad:
         values = np.exp(x.values)
         values = output.grad * values / (1. + values)
@@ -154,7 +159,8 @@ def conv2d(x, k, bias=None, stride=1, padding=0, dilation=1):
 
 
 @grad_register(op_name='conv2d')
-def conv2d_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1):
+def conv2d_grad(output_tuple, x, k, bias=None, stride=1, padding=0, dilation=1):
+    output = output_tuple[0]
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
     k_ = Zhangliang(k)
@@ -217,7 +223,8 @@ def conv2d_transpose(x, k, bias=None, stride=1, padding=0, dilation=1):
 
 
 @grad_register(op_name='conv2d_transpose')
-def conv2d_transpose_grad(output, x, k, bias=None, stride=1, padding=0, dilation=1, output_padding=0):
+def conv2d_transpose_grad(output_tuple, x, k, bias=None, stride=1, padding=0, dilation=1, output_padding=0):
+    output = output_tuple[0]
     # TODO: support output_padding
     stride, padding, dilation = get_op_settings(stride, padding, dilation)
     x_ = Zhangliang(x)
@@ -280,7 +287,11 @@ def max_pool2d(x, kernel_size=2, stride=1, dilation=1, return_indices=False):
 
 
 @grad_register(op_name='max_pool2d')
-def max_pool2d_grad(output, indices, x, kernel_size=2, stride=1, dilation=1, return_indices=False):
+def max_pool2d_grad(output_tuple, x, kernel_size=2, stride=1, dilation=1, return_indices=False):
+    if len(output_tuple) == 2:
+        output, indices = output_tuple
+    elif len(output_tuple) == 1:
+        output = output_tuple
     stride, padding, dilation = get_op_settings(stride, 0, dilation)
 
     x_ = Zhangliang(x)
@@ -313,7 +324,8 @@ def avg_pool2d(x, kernel_size=2, stride=1, padding=0, dilation=1):
 
 
 @grad_register(op_name='avg_pool2d')
-def avg_pool2d_grad(outputs, x, kernel_size=2, stride=1, dilation=1):
+def avg_pool2d_grad(output_tuple, x, kernel_size=2, stride=1, dilation=1):
+    output = output_tuple[0]
     stride, padding, dilation = get_op_settings(stride, 0, dilation)
 
     x_ = Zhangliang(x)
@@ -321,7 +333,7 @@ def avg_pool2d_grad(outputs, x, kernel_size=2, stride=1, dilation=1):
     kh, kw = kernel_size
 
     if isinstance(x, Zhangliang) and x.requires_grad:
-        output_grad = np.reshape(outputs.grad, (b, c, 1, h, w))  # [n,cout,1, hout*wout]
+        output_grad = np.reshape(output.grad, (b, c, 1, h, w))  # [n,cout,1, hout*wout]
         norm_indices = 1./ (kw * kh)
         x_grad = output_grad * norm_indices
         x_grad = col2im_backward(x_grad, h, w, stride, padding, dilation)
@@ -343,7 +355,7 @@ def one_hot(x, depth, dim=-1):
 
 
 @grad_register(op_name='one_hot')
-def one_hot_grad(output, x, depth, dim=-1):
+def one_hot_grad(output_tuple, x, depth, dim=-1):
     pass
 
 
@@ -359,7 +371,8 @@ def cross_entropy(act, label, dim=-1):
 
 
 @grad_register(op_name='cross_entropy')
-def cross_entropy_grad(output, act, label, dim=-1):
+def cross_entropy_grad(output_tuple, act, label, dim=-1):
+    output = output_tuple[0]
     x_ = Zhangliang(act)
     y_ = Zhangliang(label)
     if isinstance(act, Zhangliang) and act.requires_grad:
@@ -385,7 +398,8 @@ def cross_entropy_with_logits(logit, label, dim=-1):
 
 
 @grad_register(op_name='cross_entropy_with_logit')
-def cross_entropy_with_logits_grad(output, logit, label, dim=-1):
+def cross_entropy_with_logits_grad(output_tuple, logit, label, dim=-1):
+    output = output_tuple[0]
     x_ = Zhangliang(logit)
     y_ = Zhangliang(label)
     if isinstance(logit, Zhangliang) and logit.requires_grad:
