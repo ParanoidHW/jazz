@@ -146,7 +146,7 @@ def conv2d(x, k, bias=None, stride=1, padding=0, dilation=1):
     y_old_shape = y.shape
     y_new_shape = y_old_shape[:-1] + target_size
     y = np.reshape(y, y_new_shape)
-    if bias is not None:
+    if bias is not None or not bias:
         bias_ = Zhangliang(bias)
         y = y + np.reshape(bias_.values, (1,cout,1,1))
 
