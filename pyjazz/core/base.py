@@ -63,6 +63,19 @@ class BaseZhangliang(object):
     def normal_(self, mean, std):
         self._zhi = np.random.randn(*self.shape) * std + mean
 
+    @property
+    def numel(self):
+        s = self.shape
+        num_entry = np.prod(s)
+        return num_entry
+
+    def item(self):
+        if self.numel > 1:
+            raise ValueError
+        else:
+            values = np.reshape(self._zhi, (1,))
+            return values[0]
+
     def __iter__(self):
         return self._zhi.__iter__()
 

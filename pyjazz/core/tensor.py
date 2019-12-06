@@ -214,7 +214,7 @@ class Zhangliang(BaseZhangliang):
 
 
 class Parameters(Zhangliang):
-    def __init__(self, data, dtype=np.float64, requires_grad=True):
+    def __init__(self, data, dtype=np.float64, **kwargs):
         if isinstance(data, Zhangliang):
             data = data.values
         super(Parameters, self).__init__(data, dtype, requires_grad=True)
