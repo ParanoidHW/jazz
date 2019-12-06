@@ -512,3 +512,30 @@ def instance_norm_grad(output_tuple, x, weight, bias, running_mean, running_var,
     if isinstance(bias, Zhangliang) and bias.requires_grad:
         b_grad = np.sum(output.grad, axis=(2,3), keepdims=True)
         bias.update_grad(b_grad)
+
+
+@ctx_register(op_name='dropout2d')
+def dropout2d(x, keep_it=0.2, training=True):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    x_ = Zhangliang(x)
+    if training:
+        mask = np.random.rand(x_.shape) < keep_it
+        y = x_.values * mask
+        # rescale the output so that the weight gradient can keep the same amount
+        y = y / keep_it
+    else:
+        y = x_.values * keep_it
+    return Zhangliang(y, dtype=x_.dtype, requires_grad=graph.is_grad_enabled() and local_requires_grad)
+
+
+@grad_register(op_name='dropot2d')
+def dropout2d_grad(output_tuple, x, keep_it=0.2, training=True):
+    output = output_tuple[0]
+
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        if training:
+            mask = np.abs(output.values) > 0
+            grad = output.grad / keep_it * mask
+        else:
+            grad = output.grad * keep_it
+        x.update_grad(grad)
