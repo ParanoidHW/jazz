@@ -169,3 +169,11 @@ class BatchNorm2d(Module):
                             track_stat, self.momentum, self.eps)
         return y
 
+
+class Dropout2d(Module):
+    def __init__(self, keep_it=0.2):
+        super(Dropout2d, self).__init__()
+        self.keep_rate = keep_it
+
+    def forward(self, x):
+        return core.dropout2d(x, self.keep_rate, self.is_training)

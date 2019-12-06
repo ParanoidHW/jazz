@@ -515,11 +515,14 @@ def instance_norm_grad(output_tuple, x, weight, bias, running_mean, running_var,
 
 
 @ctx_register(op_name='dropout2d')
-def dropout2d(x, keep_it=0.2, training=True):
+def dropout2d(x, keep_it=0.2, training=True, seed=None):
     local_requires_grad = is_zhangliang_requires_grad(x)
     x_ = Zhangliang(x)
     if training:
-        mask = np.random.rand(x_.shape) < keep_it
+        if seed is None:
+            seed = np.random.randint(2147483647)
+        np.random.seed(seed)
+        mask = np.random.rand(*(x_.shape)) < keep_it
         y = x_.values * mask
         # inverted version: rescale the output so that the weight gradient can keep the same amount.
         # Then the module does do any thing during the test
@@ -529,7 +532,7 @@ def dropout2d(x, keep_it=0.2, training=True):
     return Zhangliang(y, dtype=x_.dtype, requires_grad=graph.is_grad_enabled() and local_requires_grad)
 
 
-@grad_register(op_name='dropot2d')
+@grad_register(op_name='dropout2d')
 def dropout2d_grad(output_tuple, x, keep_it=0.2, training=True):
     output = output_tuple[0]
 

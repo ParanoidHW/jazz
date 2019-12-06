@@ -87,6 +87,7 @@ class Net4(nn.Module):
             nn.Conv2d(16, 32, 3, s=2, p=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.Dropout2d(0.2)
         )
         self.fc = nn.Linear(49 * 32, 10)
         self.sm = nn.Softmax()
@@ -115,6 +116,9 @@ loss_meter = AverageMeter()
 te_acc_meter = AverageMeter()
 
 for epoch in range(100):
+    acc_meter.reset()
+    loss_meter.reset()
+    te_acc_meter.reset()
     for batch_id, data in enumerate(tr_loader):
         x, y = data
         one_hot = pyjazz.one_hot(y, depth=10)
