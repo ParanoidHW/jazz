@@ -66,11 +66,13 @@ class SGD(AbstractOptimizer):
 
         for index, p in enumerate(self.params):
             dw = p.grad
-            if self.iter == 0:
-                self.velocities[index] = - dw
-            else:
-                self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
-            p.add_(cur_lr * self.velocities[index])
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                if self.iter == 0:
+                    self.velocities[index] = - dw
+                else:
+                    self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
+                p.add_(cur_lr * self.velocities[index])
 
 
 class NesterovSGD(AbstractOptimizer):
@@ -93,11 +95,13 @@ class NesterovSGD(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            if self.iter == 0:
-                self.velocities[index] = - dw
-            else:
-                self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
-            p.add_(cur_lr * (self.velocities[index] + self.momentum * self.velocities[index]))
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                if self.iter == 0:
+                    self.velocities[index] = - dw
+                else:
+                    self.velocities[index] = self.momentum * self.velocities[index] - dw - self.weight_decay * p.values
+                p.add_(cur_lr * (self.velocities[index] + self.momentum * self.velocities[index]))
 
 
 class Rprop(AbstractOptimizer):
@@ -123,17 +127,19 @@ class Rprop(AbstractOptimizer):
         # LR schedule won't take effect in Rprop, except for initialization
         # cur_lr = self.step()
         for index, p in enumerate(self.params):
-            pos = (p.grad * self.buf_grad[index]) > 0
-            neg = (p.grad * self.buf_grad[index]) < 0
-            self.eta[index][pos] = self.eta[index][pos] * self.alpha
-            self.eta[index][neg] = self.eta[index][neg] * self.beta
+            dw = p.grad
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                pos = (dw * self.buf_grad[index]) > 0
+                neg = (dw * self.buf_grad[index]) < 0
+                self.eta[index][pos] = self.eta[index][pos] * self.alpha
+                self.eta[index][neg] = self.eta[index][neg] * self.beta
 
-            self.eta[index] = np.clip(self.eta[index], a_min=self.eta_min, a_max=self.eta_max)
+                self.eta[index] = np.clip(self.eta[index], a_min=self.eta_min, a_max=self.eta_max)
 
-            dw = np.array(p.grad)
-            dw[neg] = 0
-            p.add_(- self.eta[index] * (np.sign(dw) + self.weight_decay * p.values))
-            self.buf_grad[index] = dw
+                dw[neg] = 0
+                p.add_(- self.eta[index] * (np.sign(dw) + self.weight_decay * p.values))
+                self.buf_grad[index] = dw
 
 
 class RMSprop(AbstractOptimizer):
@@ -159,15 +165,17 @@ class RMSprop(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            if self.iter == 0:
-                self.square_sum[index] = np.square(dw)
-            else:
-                self.square_sum[index] = self.alpha * self.square_sum[index] + (1. - self.alpha) * np.square(dw)
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                if self.iter == 0:
+                    self.square_sum[index] = np.square(dw)
+                else:
+                    self.square_sum[index] = self.alpha * self.square_sum[index] + (1. - self.alpha) * np.square(dw)
 
-            rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
-            vel = - dw / rsquare_sum - self.weight_decay * p.values
+                rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
+                vel = - dw / rsquare_sum - self.weight_decay * p.values
 
-            p.add_(cur_lr * vel)
+                p.add_(cur_lr * vel)
 
 
 class AdaGrad(AbstractOptimizer):
@@ -190,10 +198,12 @@ class AdaGrad(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            self.square_sum[index] += np.square(dw)
-            rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
-            grad = - dw / rsquare_sum - self.weight_decay * p.values
-            p.add_(cur_lr * grad)
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                self.square_sum[index] += np.square(dw)
+                rsquare_sum = np.sqrt(self.square_sum[index]) + self.eps
+                grad = - dw / rsquare_sum - self.weight_decay * p.values
+                p.add_(cur_lr * grad)
 
 
 class AdaDelta(AbstractOptimizer):
@@ -222,14 +232,16 @@ class AdaDelta(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            v = self.velocities[index]
-            self.square_grad_sum[index] = self.alpha * self.square_grad_sum[index] + (1 - self.alpha) * np.square(dw)
-            rms_g = np.sqrt(self.square_grad_sum[index]) + self.eps
-            # RMS[v] is one lag behind RMS[g]
-            rms_v = np.sqrt(self.square_vel_sum[index])
-            self.velocities[index] = - rms_v / rms_g * dw - self.weight_decay * p.values
-            p.add_(cur_lr * self.velocities[index])
-            self.square_vel_sum[index] = self.alpha * self.square_vel_sum[index] + (1 - self.alpha) * np.square(v)
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                v = self.velocities[index]
+                self.square_grad_sum[index] = self.alpha * self.square_grad_sum[index] + (1 - self.alpha) * np.square(dw)
+                rms_g = np.sqrt(self.square_grad_sum[index]) + self.eps
+                # RMS[v] is one lag behind RMS[g]
+                rms_v = np.sqrt(self.square_vel_sum[index])
+                self.velocities[index] = - rms_v / rms_g * dw - self.weight_decay * p.values
+                p.add_(cur_lr * self.velocities[index])
+                self.square_vel_sum[index] = self.alpha * self.square_vel_sum[index] + (1 - self.alpha) * np.square(v)
 
 
 class Adam(AbstractOptimizer):
@@ -245,24 +257,26 @@ class Adam(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            m = self.moment1[index]
-            v = self.moment2[index]
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                m = self.moment1[index]
+                v = self.moment2[index]
 
-            if self.iter == 0:
-                m = dw
-                v = np.square(dw)
-            else:
-                m = self.beta1 * m + (1 - self.beta1) * dw
-                v = self.beta2 * v + (1 - self.beta2) * np.square(dw)
-            v_root = np.sqrt(v) + self.eps
-            grad = - self.beta2_root / (1 - self.beta1) * m / v_root - self.weight_decay * p.values
+                if self.iter == 0:
+                    m = dw
+                    v = np.square(dw)
+                else:
+                    m = self.beta1 * m + (1 - self.beta1) * dw
+                    v = self.beta2 * v + (1 - self.beta2) * np.square(dw)
+                v_root = np.sqrt(v) + self.eps
+                grad = - self.beta2_root / (1 - self.beta1) * m / v_root - self.weight_decay * p.values
 
-            # TODO: add bias correction
+                # TODO: add bias correction
 
-            p.add_(cur_lr * grad)
+                p.add_(cur_lr * grad)
 
-            self.moment1[index] = m
-            self.moment2[index] = v
+                self.moment1[index] = m
+                self.moment2[index] = v
 
 
 class AdaMax(AbstractOptimizer):
@@ -288,20 +302,22 @@ class AdaMax(AbstractOptimizer):
         cur_lr = self.step()
         for index, p in enumerate(self.params):
             dw = p.grad
-            m = self.moment1[index]
-            v = self.moment2[index]
+            if dw is not None:
+                # Some node may not in the computation graph, e.g., defined modules but not ever used.
+                m = self.moment1[index]
+                v = self.moment2[index]
 
-            if self.iter == 0:
-                m = dw
-                v = np.abs(dw)
-            else:
-                m = self.beta1 * m + (1 - self.beta1) * dw
-                v = np.maximum(self.beta2 * v, np.abs(dw))
-            grad = - 1 / (1 - self.beta1) * m / v - self.weight_decay * p.values
+                if self.iter == 0:
+                    m = dw
+                    v = np.abs(dw)
+                else:
+                    m = self.beta1 * m + (1 - self.beta1) * dw
+                    v = np.maximum(self.beta2 * v, np.abs(dw))
+                grad = - 1 / (1 - self.beta1) * m / v - self.weight_decay * p.values
 
-            # TODO: add bias correction
+                # TODO: add bias correction
 
-            p.add_(cur_lr * grad)
+                p.add_(cur_lr * grad)
 
-            self.moment1[index] = m
-            self.moment2[index] = v
+                self.moment1[index] = m
+                self.moment2[index] = v

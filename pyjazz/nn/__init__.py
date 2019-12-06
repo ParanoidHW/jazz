@@ -1,4 +1,4 @@
 from .module import Module
 from .module import (
-    Linear, Conv2d, Sigmoid, ReLU, Softmax
+    Stacked, Linear, Conv2d, Sigmoid, ReLU, Softmax, BatchNorm2d
 )
