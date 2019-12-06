@@ -15,3 +15,5 @@ More features are to be implemented including but not limited to
 - Multiprocessing dataloader
 - More basic operators
 - Network visualization
+
+p.s. It's named Jazz, simply because I am recently so much into Jazz music.
