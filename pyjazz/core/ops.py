@@ -521,10 +521,11 @@ def dropout2d(x, keep_it=0.2, training=True):
     if training:
         mask = np.random.rand(x_.shape) < keep_it
         y = x_.values * mask
-        # rescale the output so that the weight gradient can keep the same amount
+        # inverted version: rescale the output so that the weight gradient can keep the same amount.
+        # Then the module does do any thing during the test
         y = y / keep_it
     else:
-        y = x_.values * keep_it
+        y = x_.values
     return Zhangliang(y, dtype=x_.dtype, requires_grad=graph.is_grad_enabled() and local_requires_grad)
 
 
@@ -537,5 +538,5 @@ def dropout2d_grad(output_tuple, x, keep_it=0.2, training=True):
             mask = np.abs(output.values) > 0
             grad = output.grad / keep_it * mask
         else:
-            grad = output.grad * keep_it
+            grad = output.grad
         x.update_grad(grad)
