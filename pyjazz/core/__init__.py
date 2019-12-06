@@ -8,6 +8,7 @@ from .tensor import (
 )
 from .ops import (
     linear, sigmoid, relu, lrelu, softmax, softplus, conv2d, conv2d_transpose,
-    max_pool2d, avg_pool2d, one_hot, cross_entropy, cross_entropy_with_logits
+    max_pool2d, avg_pool2d, one_hot, cross_entropy, cross_entropy_with_logits,
+    batch_norm, instance_norm
 )
 from .grad_mode import no_grad, has_grad

@@ -411,3 +411,104 @@ def cross_entropy_with_logits_grad(output_tuple, logit, label, dim=-1):
         grad = np.expand_dims(output.grad, axis=dim)
         grad = - x_.values * grad
         label.update_grad(grad)
+
+
+@ctx_register(op_name='relu6')
+def relu6(x):
+    local_requires_grad = is_zhangliang_requires_grad(x)
+    with no_grad():
+        x_ = Zhangliang(x)
+        values = np.maximum(x_.values, 0.)
+        values = np.minimum(values, 6.)
+    return Zhangliang(values, dtype=values.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='relu6')
+def relu6_grad(output_tuple, x):
+    output = output_tuple[0]
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        ones = np.logical_and(x.values > 0, x.values < 6.)
+        x.update_grad(output.grad * ones)
+
+
+@ctx_register(op_name='batch_norm')
+def batch_norm(x, weight, bias, running_mean, running_var, training=False, momentum=0.1, eps=1e-5):
+    # TODO: ensure the input data x is in NCHW format
+    local_requires_grad = is_zhangliang_requires_grad(x) and \
+                          is_zhangliang_requires_grad(weight) and \
+                          is_zhangliang_requires_grad(bias)
+    x_ = Zhangliang(x)
+    w_ = Zhangliang(weight)
+    b_ = Zhangliang(bias)
+    cur_mean = np.mean(x_.values, axis=(0,2,3), keepdims=True)
+    cur_var = np.mean(np.square(x_.values - cur_mean), axis=(0,2,3), keepdims=True)
+    if training:
+        new_mean = (1. - momentum) * running_mean.values + momentum * cur_mean
+        new_var = (1. - momentum) * running_var.values + momentum * cur_var
+        running_mean.assign_value(new_mean)
+        running_var.assign_value(new_var)
+    y = (x_.values - running_mean.values) / (np.sqrt(running_var.values) + eps) * w_.values + b_.values
+
+    return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='batch_norm')
+def batch_norm_grad(output_tuple, x, weight, bias, running_mean, running_var,
+                    training=False, momentum=0.1, eps=1e-5):
+    output = output_tuple[0]
+
+    sc = 1. / (np.sqrt(running_var) + eps)
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        x_grad = np.reshape(weight.values, (1, -1, 1, 1)) * sc * output.grad
+        x.update_grad(x_grad)
+
+    if isinstance(weight, Zhangliang) and weight.requires_grad:
+        w_grad = (x.values - running_mean) * sc * output.grad
+        weight.update_grad(np.sum(w_grad, axis=(0,2,3), keepdims=True))
+
+    if isinstance(bias, Zhangliang) and bias.requires_grad:
+        b_grad = np.sum(output.grad, axis=(0,2,3), keepdims=True)
+        bias.update_grad(b_grad)
+
+
+@ctx_register(op_name='instance_norm')
+def instance_norm(x, weight, bias, running_mean, running_var, training=False, momentum=0.1, eps=1e-5):
+    # TODO: ensure the input data x is in NCHW format
+    local_requires_grad = is_zhangliang_requires_grad(x) and \
+                          is_zhangliang_requires_grad(weight) and \
+                          is_zhangliang_requires_grad(bias)
+    x_ = Zhangliang(x)
+    w_ = Zhangliang(weight)
+    b_ = Zhangliang(bias)
+    cur_mean = np.mean(x_.values, axis=(2,3), keepdims=True)
+    cur_var = np.mean(np.square(x_.values - cur_mean), axis=(2,3), keepdims=True)
+    n, c = x_.shape[:2]
+    if training:
+        new_mean = (1. - momentum) * running_mean.values + momentum * cur_mean
+        new_var = (1. - momentum) * running_var.values + momentum * cur_var
+        running_mean.assign_value(new_mean)
+        running_var.assign_value(new_var)
+
+    y = (x_.values - running_mean.values) / (np.sqrt(running_var.values) + eps) * w_.values + b_.values
+
+    return Zhangliang(y, dtype=y.dtype, requires_grad=local_requires_grad and graph.is_grad_enabled())
+
+
+@grad_register(op_name='instance_norm')
+def instance_norm_grad(output_tuple, x, weight, bias, running_mean, running_var,
+                       training=False, momentum=0.1, eps=1e-5):
+    output = output_tuple[0]
+
+    sc = 1. / (np.sqrt(running_var) + eps)
+    if isinstance(x, Zhangliang) and x.requires_grad:
+        n, c = x.shape[:2]
+        x_grad = np.reshape(weight.values, (n, c, 1, 1)) * sc * output.grad
+        x.update_grad(x_grad)
+
+    if isinstance(weight, Zhangliang) and weight.requires_grad:
+        w_grad = (x.values - running_mean) * sc * output.grad
+        weight.update_grad(np.sum(w_grad, axis=(2,3), keepdims=True))
+
+    if isinstance(bias, Zhangliang) and bias.requires_grad:
+        b_grad = np.sum(output.grad, axis=(2,3), keepdims=True)
+        bias.update_grad(b_grad)
